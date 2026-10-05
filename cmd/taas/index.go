@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 )
@@ -104,6 +105,15 @@ func search(entries []entry, query string) []entry {
 			}
 		}
 		if len(found) > 0 {
+			slices.SortFunc(found, func(a, b entry) int {
+				if a.Uploaded.After(b.Uploaded) {
+					return -1
+				}
+				if a.Uploaded.Before(b.Uploaded) {
+					return 1
+				}
+				return 0
+			})
 			return found
 		}
 	}
