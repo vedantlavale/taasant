@@ -1,3 +1,5 @@
 /taas
 .env
 hello.go
+*.html
+DOC.md
