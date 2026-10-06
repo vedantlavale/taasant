@@ -1,5 +1,8 @@
 /taas
+/taasant
+/dist/
 .env
 hello.go
 *.html
 DOC.md
+.DS_Store

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -13,22 +14,22 @@ import (
 	"strconv"
 	"time"
 
-	"taas-ant/tgstore"
+	"github.com/vedantlavale/taasant/tgstore"
 )
 
 const usage = `usage:
-  taas keygen
-  taas upload <file>
-  taas list [search]
-  taas download <name or id> [output-file]
-  taas delete <name or id>
+  taasant keygen
+  taasant upload <file>
+  taasant list [search]
+  taasant download <name or id> [output-file]
+  taasant delete <name or id>
 
-A name can be typed partly: "taas download hol" finds "holiday.jpg".
+A name can be typed partly: "taasant download hol" finds "holiday.jpg".
 
 environment:
   TG_BOT_TOKEN  bot token from @BotFather
   TG_CHAT_ID    chat the bot stores files in
-  TAAS_KEY      encryption key printed by "taas keygen"
+  TAAS_KEY      encryption key printed by "taasant keygen"
   TAAS_INDEX    optional, where the list of uploads is kept`
 
 func main() {
@@ -102,7 +103,10 @@ func run(args []string) error {
 			return err
 		}
 		fmt.Println(added.ID)
-		return saveIndex(indexFile, append(entries, added))
+		if err := saveIndex(indexFile, append(entries, added)); err != nil {
+			return err
+		}
+		return backupIndex(ctx, store, key, indexFile)
 
 	case "download":
 		e, err := find(entries, args[0])
@@ -131,7 +135,10 @@ func run(args []string) error {
 			return err
 		}
 		entries = slices.DeleteFunc(entries, func(other entry) bool { return other.ID == e.ID })
-		return saveIndex(indexFile, entries)
+		if err := saveIndex(indexFile, entries); err != nil {
+			return err
+		}
+		return backupIndex(ctx, store, key, indexFile)
 	}
 }
 
@@ -165,4 +172,16 @@ func download(ctx context.Context, store *tgstore.Store, key []byte, id, output 
 		return err
 	}
 	return file.Close()
+}
+
+func backupIndex(ctx context.Context, store *tgstore.Store, key []byte, path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	id, err := store.Upload(ctx, key, bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path+".remote", []byte(id+"\n"), 0o600)
 }

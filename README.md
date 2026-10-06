@@ -1,130 +1,214 @@
-# taas
+# taasant
 
-Use a Telegram chat as encrypted file storage, from the command line.
+`taasant` is a small command-line tool that uses a Telegram chat as encrypted file storage.
 
-```
-$ taas upload holiday.jpg
+Your files are encrypted before they leave your computer. Telegram stores only encrypted data, while `taasant` keeps a local index so you can find files by name.
+
+```console
+$ taasant upload holiday.jpg
 104:BQACAgUAAxkDAAMG...
 
-$ taas list
+$ taasant list
 2026-10-05 12:09    45.0 MiB  holiday.jpg
     104:BQACAgUAAxkDAAMG...
 
-$ taas download hol
+$ taasant download hol
 saved holiday.jpg
 ```
 
-Files are encrypted on your computer before they are sent, so Telegram only ever holds scrambled data. Large files are split into parts automatically. taas is one small binary with no dependencies, written in Go.
-
-Please store only what you need. Don't abuse Telegram's service.
+> Use a private chat and store only files you are allowed to store. Please do not abuse Telegram's service.
 
 ## How it works
 
-1. The file is cut into parts of 19 MiB, because a bot cannot download anything larger than 20 MB.
-2. Each part is encrypted with AES-256-GCM and sent to your chat as a message.
-3. A small manifest listing the parts is encrypted and sent the same way.
-4. The manifest's ID is saved, with the file name, in an index on your computer.
+Large files are split into parts smaller than Telegram's bot download limit. Each part is encrypted with AES-256-GCM and uploaded as a Telegram document. A small encrypted manifest records the parts that make up the original file.
 
-Downloading reverses this: look up the name, fetch the manifest, fetch each part, decrypt, and join.
+Uploads use several workers so multiple parts can be sent at the same time. Downloads fetch parts concurrently, then write them to disk in their original order.
 
-## Install
+The local index records each file's name, size, upload time, and manifest ID. After an upload or delete, the current index is also encrypted and uploaded to Telegram as a backup.
 
-You need [Go](https://go.dev/dl/) 1.27 or newer.
+## Installation
+
+### Download a binary
+
+No Go needed. Pick the file for your system from the [latest release](https://github.com/vedantlavale/taasant/releases/latest):
+
+| System | File |
+| --- | --- |
+| macOS, Apple Silicon | `taasant-macos-arm64` |
+| macOS, Intel | `taasant-macos-intel` |
+| Linux, x86-64 | `taasant-linux-amd64` |
+| Windows, x86-64 | `taasant-windows.exe` |
+
+On macOS or Linux, make it runnable and put it on your `PATH`. For example, on an Apple Silicon Mac:
 
 ```bash
-git clone <this repository>
-cd tass-ant
-go build -o taas ./cmd/taas
-sudo mv taas /usr/local/bin/
+curl -L -o taasant https://github.com/vedantlavale/taasant/releases/latest/download/taasant-macos-arm64
+chmod +x taasant
+sudo mv taasant /usr/local/bin/
 ```
 
-`taas` now works from any folder.
+The binaries are not signed. If macOS refuses to open the file, clear the download flag once:
+
+```bash
+xattr -d com.apple.quarantine /usr/local/bin/taasant
+```
+
+### Install with Go
+
+If you have [Go 1.27 or newer](https://go.dev/dl/):
+
+```bash
+go install github.com/vedantlavale/taasant/cmd/taasant@latest
+```
+
+This puts `taasant` in `~/go/bin`. Add that folder to your `PATH` if it is not there already.
+
+### Build from source
+
+```bash
+git clone https://github.com/vedantlavale/taasant.git
+cd taasant
+go build -o taasant ./cmd/taasant
+sudo mv taasant /usr/local/bin/
+```
 
 ## Setup
 
-You need three values: a bot token, your chat ID and an encryption key.
+You need a Telegram bot token, a chat ID, and an encryption key.
 
-1. **Create a bot.** In Telegram, message [@BotFather](https://t.me/BotFather), send `/newbot` and follow the steps. It gives you a token like `123456:ABC...`.
-2. **Start a chat with your bot.** Open the bot you just created and press Start. A bot can only message people who have messaged it first.
-3. **Find your chat ID.** Message [@userinfobot](https://t.me/userinfobot). It replies with your numeric ID.
-4. **Generate a key.**
+### 1. Create a Telegram bot
 
-   ```bash
-   taas keygen
-   ```
+Message [@BotFather](https://t.me/BotFather) on Telegram, send `/newbot`, and follow the instructions. BotFather will give you a token similar to:
 
-5. **Save all three** at the end of `~/.zshrc` (or `~/.bashrc`):
+```text
+123456:ABC...
+```
 
-   ```bash
-   export TG_BOT_TOKEN="123456:ABC..."
-   export TG_CHAT_ID="1234567890"
-   export TAAS_KEY="the 64 characters from keygen"
-   ```
+### 2. Start a chat with the bot
 
-   Then run `source ~/.zshrc`, or open a new terminal.
+Open the new bot and press **Start**. The bot must have permission to send messages to the chat you use for storage.
 
-Generate the key once and keep a copy somewhere safe, such as a password manager. Files uploaded with one key cannot be read with another.
+### 3. Find your chat ID
 
-## Usage
+Message [@userinfobot](https://t.me/userinfobot). It will reply with your numeric chat ID.
 
-| Command | What it does |
-| --- | --- |
-| `taas upload <file>` | Store a file. Prints its ID and remembers its name. |
-| `taas list [search]` | Show stored files, newest first. |
-| `taas download <name or id> [output-file]` | Fetch a file. Saves under its original name unless you give another. |
-| `taas delete <name or id>` | Remove a file from the chat and from the index. |
-| `taas keygen` | Print a new encryption key. |
+### 4. Generate an encryption key
 
-### Names
+```bash
+taasant keygen
+```
 
-You don't have to type a full name. taas tries three rules and uses the first one that finds anything:
+Save the output somewhere secure. It is a 256-bit encryption key and cannot be recovered if lost.
 
-1. The exact name: `holiday.jpg`
-2. Part of the name, ignoring case: `holi`
-3. The letters in order, with anything between them: `hjp`
+### 5. Configure the environment
 
-If several files match, taas lists them and stops, so it never downloads or deletes the wrong one. A full ID always works too.
+Add these values to `~/.zshrc` or `~/.bashrc`:
 
-`download` never overwrites an existing file. Give a different output name or remove the old file first.
+```bash
+export TG_BOT_TOKEN="123456:ABC..."
+export TG_CHAT_ID="1234567890"
+export TAAS_KEY="the-64-character-value-from-keygen"
+```
 
-## Where things are kept
+Then reload your shell:
 
-| What | Where |
-| --- | --- |
-| Your files | Your Telegram chat, as encrypted `part.bin` messages |
-| Names and IDs | `index.json` in your user config folder (`~/Library/Application Support/taas/` on macOS, `~/.config/taas/` on Linux). Set `TAAS_INDEX` to move it. |
-| Token and key | The environment variables you set |
+```bash
+source ~/.zshrc
+```
 
-## Good to know
+Use the same key every time. Files encrypted with a different key cannot be downloaded.
 
-- **Keep your key.** It is not stored anywhere else. Without it, uploaded files cannot be decrypted.
-- **Back up the index.** It exists only on this computer. Without it the files are still in the chat, but you no longer know their IDs.
-- **Delete has a time limit.** Telegram only lets a bot delete messages sent in the last 48 hours.
-- **Large uploads use memory.** Expect a few hundred MB while uploading files larger than 19 MiB.
-- **The messages in the chat are not usable by hand.** Downloading a `part.bin` from the Telegram app gives you encrypted bytes. Use `taas download`.
+## Commands
+
+| Command                                       | Description                                                                  |
+| --------------------------------------------- | ---------------------------------------------------------------------------- |
+| `taasant keygen`                              | Generate and print a new encryption key.                                     |
+| `taasant upload <file>`                       | Encrypt and upload a file.                                                   |
+| `taasant list [search]`                       | List uploaded files, newest first. An optional search term filters the list. |
+| `taasant download <name-or-id> [output-file]` | Download a file. By default, it uses the original filename.                  |
+| `taasant delete <name-or-id>`                 | Delete a file from Telegram and remove it from the local index.              |
+
+### Finding files
+
+You do not need to type a complete filename. `taasant` tries these searches in order:
+
+1. Exact filename, such as `holiday.jpg`
+2. A case-insensitive part of the filename, such as `holi`
+3. Letters appearing in order, such as `hjp` matching `holiday.jpg`
+
+If multiple files match, `taasant` shows the matches and stops instead of guessing. You can then type more of the filename or use the full ID.
+
+### Downloads never overwrite files
+
+If the output filename already exists, the download fails rather than replacing it:
+
+```bash
+taasant download holiday.jpg holiday-copy.jpg
+```
+
+## Where data is stored
+
+| Data                               | Location                                          |
+| ---------------------------------- | ------------------------------------------------- |
+| Encrypted file parts and manifests | Your Telegram chat                                |
+| Local file index                   | `index.json` in your user configuration directory |
+| Index backup ID                    | `index.json.remote` beside the local index        |
+| Telegram token and encryption key  | The environment variables you configure           |
+
+The default index locations are usually:
+
+- macOS: `~/Library/Application Support/taasant/index.json`
+- Linux: `~/.config/taasant/index.json`
+
+You can choose another index location with:
+
+```bash
+export TAAS_INDEX="/path/to/index.json"
+```
+
+The backup index is encrypted with `TAAS_KEY`. Keep the `.remote` file with your local index, or copy its ID somewhere safe as well; the ID is needed to locate that backup in Telegram.
+
+## Security and limitations
+
+- Keep `TAAS_KEY` private. Anyone who has the key and the relevant Telegram IDs may be able to decrypt files.
+- Telegram receives encrypted bytes, not the original file contents.
+- Losing the key makes the stored files unrecoverable.
+- Losing the local index does not delete your Telegram files, but it makes their IDs difficult to find. Keep a copy of the index and its remote backup ID.
+- Telegram only allows bots to delete messages sent within the last 48 hours.
+- Large uploads use memory because parts are encrypted before being sent.
+- Files downloaded manually from Telegram appear as encrypted `part.bin` files and cannot be opened directly.
 
 ## Troubleshooting
 
-| Error | Cause |
-| --- | --- |
-| `the bot can't send messages to the bot` | `TG_CHAT_ID` is a bot's ID, often the number at the start of the token. Use your own ID from @userinfobot. |
-| `bot can't initiate conversation with a user` | You haven't pressed Start in the chat with your bot. |
-| `401 Unauthorized` | `TG_BOT_TOKEN` is wrong or was revoked. |
-| `cipher: message authentication failed` | `TAAS_KEY` is not the key the file was uploaded with. |
-| `file exists` | `download` won't overwrite. Give another output name. |
+| Message                                       | What to check                                               |
+| --------------------------------------------- | ----------------------------------------------------------- |
+| `TG_BOT_TOKEN is not set`                     | Set `TG_BOT_TOKEN` in your shell.                           |
+| `TG_CHAT_ID must be a number`                 | Check that `TG_CHAT_ID` contains only a numeric chat ID.    |
+| `401 Unauthorized`                            | The bot token may be wrong or revoked.                      |
+| `the bot can't send messages to the bot`      | You may have used the bot's ID instead of your own chat ID. |
+| `bot can't initiate conversation with a user` | Open the bot chat and press **Start**.                      |
+| `cipher: message authentication failed`       | The `TAAS_KEY` does not match the key used for the upload.  |
+| `file exists`                                 | Choose a different download output filename.                |
 
 ## Development
 
+Run the tests with:
+
 ```bash
-go test ./...          # runs against a fake Telegram server, no token needed
-go test -race ./...    # also checks for concurrency mistakes
+go test ./...
 ```
 
-| Path | Contents |
-| --- | --- |
-| `cmd/taas/` | The command line and the name index |
-| `tgstore/` | Upload, download and delete; encryption; the Telegram calls |
+To check for data races:
 
-## Credits
+```bash
+go test -race ./...
+```
 
-The storage idea comes from [golang-design/tgstore](https://github.com/golang-design/tgstore). taas is a smaller rewrite using only the Go standard library, built to learn Go.
+The main directories are:
+
+- `cmd/taasant/` — command-line handling and the local index
+- `tgstore/` — encryption, file splitting, concurrent transfers, and Telegram API calls
+
+## License and credits
+
+The storage design was inspired by [golang-design/tgstore](https://github.com/golang-design/tgstore). `taasant` is a small rewrite using only Go's standard library.
