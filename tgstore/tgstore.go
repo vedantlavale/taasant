@@ -147,12 +147,29 @@ func (s *Store) Download(ctx context.Context, key []byte, id string, w io.Writer
 		return err
 	}
 
-	for _, p := range m.Parts {
-		plain, err := s.fetchPart(ctx, aead, p.FileID)
-		if err != nil {
-			return err
+	type result struct {
+		data []byte
+		err  error
+	}
+	results := make([]chan result, len(m.Parts))
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	for i, p := range m.Parts {
+		ch := make(chan result, 1)
+		results[i] = ch
+		go func() {
+			data, err := s.fetchPart(ctx, aead, p.FileID)
+			ch <- result{data: data, err: err}
+		}()
+	}
+	for _, ch := range results {
+		result := <-ch
+		if result.err != nil {
+			cancel()
+			return result.err
 		}
-		if _, err := w.Write(plain); err != nil {
+		if _, err := w.Write(result.data); err != nil {
+			cancel()
 			return err
 		}
 	}
