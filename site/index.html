@@ -7,7 +7,7 @@
 <meta name="description" content="taasant turns a Telegram bot chat into an encrypted drive you use from the terminal. Install, set up and use it.">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0b0f0d" media="(prefers-color-scheme: dark)">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230a7d57'/%3E%3Cpath d='M9 21V11h6.5a3 3 0 0 1 0 6H9m8 4 6-10' stroke='%23fff' stroke-width='2.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="icon" type="image/svg+xml" href="logo.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -120,8 +120,7 @@
   }
   .brand { display: flex; align-items: center; gap: 10px; color: var(--fg); font-weight: 600; font-size: 16px; letter-spacing: -.01em; }
   .brand:hover { text-decoration: none; }
-  .brand .mark { width: 28px; height: 28px; border-radius: 8px; background: var(--accent); display: grid; place-items: center; }
-  .brand .mark svg { width: 18px; height: 18px; stroke: var(--accent-fg); fill: none; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+  .brand .mark { width: 28px; height: 28px; border-radius: 8px; display: block; }
   .brand small { font-weight: 500; color: var(--fg-faint); font-size: 13px; padding-left: 10px; border-left: 1px solid var(--line-strong); }
   .search-btn {
     margin: 0 auto; width: min(420px, 100%);
@@ -430,7 +429,7 @@
 <header class="header">
   <button class="icon-btn" id="menu-btn" aria-label="Open navigation"><svg class="i"><use href="#i-menu"/></svg></button>
   <a class="brand" href="#introduction">
-    <span class="mark"><svg viewBox="0 0 24 24"><path d="M6 17V7h6a3 3 0 0 1 0 6H6m8 4 5-10" /></svg></span>
+    <img class="mark" src="logo.svg" alt="" width="28" height="28">
     taasant <small>Docs</small>
   </a>
   <button class="search-btn" id="search-btn" aria-label="Search docs">
