@@ -89,7 +89,7 @@ func run(args []string) error {
 	}
 	key, err := hex.DecodeString(os.Getenv("TAAS_KEY"))
 	if err != nil || len(key) != 32 {
-		return errors.New(`TAAS_KEY must be 64 hex characters, create one with "taas keygen"`)
+		return errors.New(`TAAS_KEY must be 64 hex characters, create one with "taasant keygen"`)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
