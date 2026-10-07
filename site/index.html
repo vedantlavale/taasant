@@ -364,6 +364,15 @@
   .foot { margin-top: 48px; padding-top: 22px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; font-size: 13.5px; color: var(--fg-faint); }
   .foot a { color: var(--fg-muted); }
 
+  /* Support */
+  /* GitHub draws the card light or dark by the system setting, not by this
+     site's own switch, so the frame around it follows the system too. */
+  .sponsor-frame { max-width: 600px; padding: 16px; margin: 18px 0 8px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+  .sponsor-frame iframe { display: block; width: 100%; }
+  @media (prefers-color-scheme: dark) { .sponsor-frame { background: #0d1117; } }
+  /* The coffee bubble asks for the very top layer. Keep it under the search palette and the phone menu. */
+  #bmc-wbtn { z-index: 50 !important; }
+
   /* Search palette */
   .scrim { position: fixed; inset: 0; z-index: 90; background: rgba(8,14,11,.5); backdrop-filter: blur(3px); display: none; align-items: flex-start; justify-content: center; padding: 12vh 16px 0; }
   .scrim.open { display: flex; }
@@ -397,7 +406,7 @@
     }
     body.nav-open .sidebar { transform: none; }
     body.nav-open::after { content: ""; position: fixed; inset: var(--header-h) 0 0 0; background: rgba(8,14,11,.4); z-index: 55; }
-    main { padding: 28px 16px 64px; }
+    main { padding: 28px 16px 104px; } /* the bottom leaves room for the coffee bubble */
     h1 { font-size: 31px; }
     .lede { font-size: 17px; }
     .row { grid-template-columns: 1fr; gap: 4px; }
@@ -459,6 +468,8 @@
     <h6>Internals</h6>
     <a href="#how-it-works" data-page="how-it-works">How it works</a>
     <a href="#development" data-page="development">Development</a>
+    <h6>Project</h6>
+    <a href="#support" data-page="support">Support</a>
     <div class="ext">
       <svg class="i"><use href="#i-github"/></svg>
       <a href="https://github.com/vedantlavale/taasant" style="padding:0;margin:0;display:inline">Source on GitHub</a>
@@ -499,7 +510,7 @@
           <div class="row"><h3>Encrypted before upload</h3><p>Every part is encrypted on your computer with AES-256-GCM. Telegram only ever sees scrambled bytes.</p></div>
           <div class="row"><h3>Big files, handled</h3><p>Large files are split into parts and put back together for you. No manual chunking.</p></div>
           <div class="row"><h3>Names, not IDs</h3><p>Get files back by name. Type part of it, or just a few of its letters.</p></div>
-          <div class="row"><h3>One small binary</h3><p>Written in Go with nothing outside the standard library. Download it, run it, done.</p></div>
+          <div class="row"><h3>One small binary</h3><p>Written in Go. Download it, run it, done.</p></div>
         </div>
 
         <h2 id="telegram-sees">What Telegram sees</h2>
@@ -661,10 +672,16 @@ taasant list                       # see everything, newest first
 taasant list rep                   # search
 taasant download report            # get it back
 taasant download report copy.pdf   # get it back under another name
-taasant delete report              # remove it</pre></div>
+taasant delete report              # remove it
+taasant update                     # get the newest version of taasant</pre></div>
 
         <h2 id="menu">The menu</h2>
-        <p>Type <code>taasant</code> with nothing after it. Move with the arrow keys, press <kbd>Enter</kbd>, and it asks for whatever it needs. When it asks which file to upload, you can drag a file into the terminal.</p>
+        <p>Type <code>taasant</code> with nothing after it. Move with the arrow keys and press <kbd>Enter</kbd>. The menu stays open until you press <kbd>Q</kbd>, and <kbd>Esc</kbd> goes back.</p>
+        <ul>
+          <li><b>Upload</b> shows the folder you are in. <kbd>→</kbd> opens a folder and <kbd>←</kbd> goes up. <kbd>Space</kbd> marks a file, and <kbd>Enter</kbd> uploads everything you marked, or the file under the cursor if you marked nothing.</li>
+          <li><b>Files</b> shows what you have stored from this computer.</li>
+          <li><b>Download</b> and <b>Delete</b> show the same list, and <kbd>Enter</kbd> picks the file. A download lands in the folder you started taasant from. Delete asks first.</li>
+        </ul>
 
         <h2 id="progress">Progress</h2>
         <p>Uploads and downloads show a progress bar. It moves one part (19 MiB) at a time, so a small file jumps straight to done.</p>
@@ -797,7 +814,7 @@ taasant delete report              # remove it</pre></div>
       <section class="page" id="p-development" data-title="Development" data-group="Internals">
         <p class="eyebrow">Internals</p>
         <h1>Development</h1>
-        <p class="lede">Small codebase, standard library only.</p>
+        <p class="lede">Small codebase. The storage code is standard library only.</p>
 
         <div class="code"><div class="bar"><span>bash</span></div>
 <pre data-lang="bash">go test ./...          # no token or internet needed, it uses a fake Telegram
@@ -813,10 +830,26 @@ go test -race ./...    # also checks for concurrency mistakes</pre></div>
         <p>The storage design was inspired by <a href="https://github.com/golang-design/tgstore">golang-design/tgstore</a>.</p>
       </section>
 
+      <!-- ================= SUPPORT ================= -->
+      <section class="page" id="p-support" data-title="Support" data-group="Project">
+        <p class="eyebrow">Project</p>
+        <h1>Support</h1>
+        <p class="lede">taasant is free to use. If it is useful to you, you can help keep it going.</p>
+
+        <h2 id="sponsor">GitHub Sponsors</h2>
+        <p>Sponsor the work every month or just once, through your GitHub account.</p>
+        <div class="sponsor-frame"><iframe src="https://github.com/sponsors/vedantlavale/card" title="Sponsor vedantlavale" height="225" width="600" style="border: 0;" loading="lazy"></iframe></div>
+
+        <h2 id="coffee">Buy me a coffee</h2>
+        <p>A small one-time thank you.</p>
+        <!-- The yellow button replaces this link once its script has loaded, see the end of the page. -->
+        <p id="coffee-slot"><a href="https://buymeacoffee.com/vedantman">buymeacoffee.com/vedantman</a></p>
+      </section>
+
       <div class="pager" id="pager"></div>
       <div class="foot">
         <span>taasant</span>
-        <span><a href="https://github.com/vedantlavale/taasant">GitHub</a> · <a href="https://github.com/vedantlavale/taasant/issues">Issues</a> · <a href="https://github.com/vedantlavale/taasant/releases/latest">Releases</a></span>
+        <span><a href="https://github.com/vedantlavale/taasant">GitHub</a> · <a href="https://github.com/vedantlavale/taasant/issues">Issues</a> · <a href="https://github.com/vedantlavale/taasant/releases/latest">Releases</a> · <a href="#support">Sponsor</a></span>
       </div>
     </article>
   </main>
@@ -1047,5 +1080,20 @@ go test -race ./...    # also checks for concurrency mistakes</pre></div>
   route();
 })();
 </script>
+
+<!-- Buy me a coffee. The button script writes its button right where the tag
+     is, so it cannot be loaded later. It sits down here, after the page's own
+     script, so a slow buymeacoffee.com never holds the docs up. The button is
+     then moved into the Support page. -->
+<div id="coffee-source" hidden>
+<script type="text/javascript" src="https://cdnjs.buymeacoffee.com/1.0.0/button.prod.min.js" data-name="bmc-button" data-slug="vedantman" data-color="#FFDD00" data-emoji="☕"  data-font="Poppins" data-text="Buy me a coffee" data-outline-color="#000000" data-font-color="#000000" data-coffee-color="#ffffff" ></script>
+</div>
+<script>
+  (function () {
+    var button = document.querySelector('#coffee-source .bmc-btn');
+    if (button) document.getElementById('coffee-slot').replaceChildren(button);
+  })();
+</script>
+<script data-name="BMC-Widget" data-cfasync="false" src="https://cdnjs.buymeacoffee.com/1.0.0/widget.prod.min.js" data-id="vedantman" data-description="Support me on Buy me a coffee!" data-message="" data-color="#BD5FFF" data-position="Right" data-x_margin="18" data-y_margin="18"></script>
 </body>
 </html>
