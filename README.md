@@ -4,6 +4,10 @@
 
 # taasant
 
+[![Downloads](https://img.shields.io/github/downloads/vedantlavale/taasant/total?label=downloads&color=6d5df6)](https://github.com/vedantlavale/taasant/releases)
+[![Latest release](https://img.shields.io/github/v/release/vedantlavale/taasant?color=6d5df6)](https://github.com/vedantlavale/taasant/releases/latest)
+[![Stars](https://img.shields.io/github/stars/vedantlavale/taasant?color=e3a008)](https://github.com/vedantlavale/taasant)
+
 Telegram lets a bot store files in a chat for free. taasant turns that into a little encrypted drive you use from the terminal.
 
 Docs: [taasant.vedantworks.com](https://taasant.vedantworks.com)
