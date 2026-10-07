@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 11" shape-rendering="crispEdges">
+  <!-- The logo seen from the front, waving. The header shows this one while
+       the pointer is on the logo. The arms are drawn twice and shown in turn. -->
+  <style>
+    .b { visibility: hidden; }
+    @media (prefers-reduced-motion: no-preference) {
+      .a { animation: show .5s steps(1) infinite; }
+      .b { animation: show .5s steps(1) -.25s infinite; }
+    }
+    @keyframes show { 0% { visibility: visible; } 50%, 100% { visibility: hidden; } }
+  </style>
+  <rect x="7" y="0" width="1" height="1" fill="#6d5df6"/>
+  <rect x="12" y="0" width="1" height="1" fill="#6d5df6"/>
+  <rect x="8" y="1" width="1" height="1" fill="#6d5df6"/>
+  <rect x="11" y="1" width="1" height="1" fill="#6d5df6"/>
+  <rect x="7" y="2" width="6" height="1" fill="#6d5df6"/>
+  <rect x="6" y="3" width="8" height="1" fill="#6d5df6"/>
+  <rect x="6" y="4" width="2" height="1" fill="#6d5df6"/>
+  <rect x="8" y="4" width="1" height="1" fill="#15122e"/>
+  <rect x="9" y="4" width="2" height="1" fill="#6d5df6"/>
+  <rect x="11" y="4" width="1" height="1" fill="#15122e"/>
+  <rect x="12" y="4" width="2" height="1" fill="#6d5df6"/>
+  <rect x="6" y="5" width="2" height="1" fill="#6d5df6"/>
+  <rect x="8" y="5" width="1" height="1" fill="#15122e"/>
+  <rect x="9" y="5" width="2" height="1" fill="#6d5df6"/>
+  <rect x="11" y="5" width="1" height="1" fill="#15122e"/>
+  <rect x="12" y="5" width="2" height="1" fill="#6d5df6"/>
+  <rect x="6" y="6" width="8" height="1" fill="#6d5df6"/>
+  <rect x="7" y="7" width="6" height="1" fill="#6d5df6"/>
+  <rect x="7" y="8" width="6" height="1" fill="#6d5df6"/>
+  <rect x="8" y="9" width="4" height="1" fill="#6d5df6"/>
+  <rect x="8" y="10" width="1" height="1" fill="#6d5df6"/>
+  <rect x="11" y="10" width="1" height="1" fill="#6d5df6"/>
+  <g class="a"><rect x="6" y="8" width="1" height="1" fill="#6d5df6"/><rect x="5" y="7" width="1" height="1" fill="#6d5df6"/><rect x="4" y="6" width="1" height="1" fill="#6d5df6"/><rect x="4" y="5" width="1" height="1" fill="#6d5df6"/><rect x="13" y="8" width="1" height="1" fill="#6d5df6"/><rect x="14" y="8" width="1" height="1" fill="#6d5df6"/><rect x="15" y="7" width="1" height="1" fill="#6d5df6"/><rect x="16" y="7" width="1" height="1" fill="#6d5df6"/></g>
+  <g class="b"><rect x="6" y="8" width="1" height="1" fill="#6d5df6"/><rect x="5" y="8" width="1" height="1" fill="#6d5df6"/><rect x="4" y="7" width="1" height="1" fill="#6d5df6"/><rect x="3" y="7" width="1" height="1" fill="#6d5df6"/><rect x="13" y="8" width="1" height="1" fill="#6d5df6"/><rect x="14" y="7" width="1" height="1" fill="#6d5df6"/><rect x="15" y="6" width="1" height="1" fill="#6d5df6"/><rect x="15" y="5" width="1" height="1" fill="#6d5df6"/></g>
+</svg>

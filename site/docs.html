@@ -258,7 +258,8 @@
   .pager small { display: block; font-size: 13px; color: var(--fg-faint); }
   .pager b { font-weight: 500; }
   .pager .next { text-align: right; grid-column: 2; }
-  .foot { margin-top: 40px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; font-size: 13.5px; color: var(--fg-faint); }
+  .ant-track { margin-top: 40px; }
+  .foot { margin-top: 16px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; font-size: 13.5px; color: var(--fg-faint); }
   .foot a { color: var(--fg-muted); }
 
   /* Support */
@@ -344,7 +345,7 @@
     <svg class="i"><use href="#i-search"/></svg><span>Search docs</span><kbd id="kbd-hint">Ctrl K</kbd>
   </button>
   <div class="header-actions">
-    <a class="icon-btn" href="https://github.com/vedantlavale/taasant" aria-label="taasant on GitHub"><svg class="i"><use href="#i-github"/></svg></a>
+    <a class="gh" href="https://github.com/vedantlavale/taasant" aria-label="taasant on GitHub"><svg class="i"><use href="#i-github"/></svg><span class="stars">Star</span></a>
     <button class="icon-btn" id="theme-btn" aria-label="Toggle theme">
       <svg class="i sun"><use href="#i-sun"/></svg><svg class="i moon"><use href="#i-moon"/></svg>
     </button>
@@ -802,6 +803,10 @@ go test -race ./...    # also checks for concurrency mistakes</pre></div>
         <h1>Support</h1>
         <p class="lede">taasant is free to use. If it is useful to you, you can help keep it going.</p>
 
+        <h2 id="star">Star it on GitHub</h2>
+        <p>This costs nothing and takes one click. Stars are how other people find the project.</p>
+        <div class="btns"><a class="btn" href="https://github.com/vedantlavale/taasant"><span class="star">★</span> Star taasant</a></div>
+
         <h2 id="sponsor">GitHub Sponsors</h2>
         <p>Sponsor the work every month or just once, through your GitHub account.</p>
         <div class="sponsor-frame"><iframe src="https://github.com/sponsors/vedantlavale/card" title="Sponsor vedantlavale" height="225" width="600" style="border: 0;" loading="lazy"></iframe></div>
@@ -813,6 +818,7 @@ go test -race ./...    # also checks for concurrency mistakes</pre></div>
       </section>
 
       <div class="pager" id="pager"></div>
+      <div class="ant-track" aria-hidden="true"><img src="logo.svg" alt=""></div>
       <div class="foot">
         <span>made with 🫶 by <a href="https://vedantworks.com">Vedant</a></span>
         <span><a href="https://github.com/vedantlavale/taasant">GitHub</a> · <a href="https://github.com/vedantlavale/taasant/issues">Issues</a> · <a href="https://github.com/vedantlavale/taasant/releases/latest">Releases</a> · <a href="#support">Sponsor</a></span>
@@ -1046,6 +1052,9 @@ go test -race ./...    # also checks for concurrency mistakes</pre></div>
   route();
 })();
 </script>
+
+<script src="stars.js"></script>
+<script src="ant.js"></script>
 
 <!-- Buy me a coffee. The button script writes its button right where the tag
      is, so it cannot be loaded later. It sits down here, after the page's own

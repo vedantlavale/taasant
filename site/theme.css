@@ -84,3 +84,27 @@
 .term .d { color: #7d7d8c; }
 .term .bd { font-weight: 700; }
 .term .e { display: inline-block; width: 2ch; }
+
+/* The link to GitHub in the header, with the number of stars beside the logo. */
+.gh { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: var(--radius); color: var(--fg-muted); font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gh:hover { border-color: var(--fg-faint); color: var(--fg); text-decoration: none; }
+.header-actions .gh { margin-right: 6px; }
+.star { color: #e3a008; }
+.btn.primary .star { color: #ffd54a; }
+
+/* The ant on the line above the footer. ant.js puts it there and decides
+   what it does. Without that script the logo just stands on the line. */
+.ant-track { height: 34px; overflow: hidden; position: relative; border-bottom: 1px solid var(--line); }
+.ant-track img, .ant-track svg { position: absolute; left: 0; bottom: 0; width: 42px; height: 22px; }
+.ant-track img { left: 24px; }
+.ant-track .b, .ant-track .alt .a { visibility: hidden; }
+.ant-track .alt .b { visibility: visible; }
+.ant-track .twitch .antenna { transform: translate(-1px, 1px); }
+
+/* The logo in the header says hi when the pointer is on it: it turns to
+   face you and waves. The turn is the drawing getting wider in three jumps. */
+.brand:hover img { content: url(logo-front.svg); }
+@media (prefers-reduced-motion: no-preference) {
+  .brand:hover img { animation: turn .25s steps(3); }
+}
+@keyframes turn { from { transform: scaleX(.1); } to { transform: none; } }
