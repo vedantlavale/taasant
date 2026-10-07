@@ -20,7 +20,8 @@ type entry struct {
 }
 
 func (e entry) String() string {
-	return fmt.Sprintf("%s  %10s  %s\n    %s", e.Uploaded.Format("2006-01-02 15:04"), formatSize(e.Size), e.Name, e.ID)
+	details := formatSize(e.Size) + "  " + formatWhen(e.Uploaded, time.Now())
+	return fmt.Sprintf("  %s  %s\n    %s", e.Name, paint(errTTY, dim, details), paint(errTTY, dim, e.ID))
 }
 
 func formatSize(n int64) string {

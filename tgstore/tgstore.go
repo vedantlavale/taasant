@@ -26,6 +26,10 @@ type Store struct {
 	Workers  int
 	Client   *http.Client
 
+	// Progress, if set, is called with the size of each part once it has been
+	// uploaded or downloaded. Calls never overlap.
+	Progress func(bytes int)
+
 	partSize int
 }
 
@@ -91,6 +95,9 @@ func (s *Store) Upload(ctx context.Context, key []byte, r io.Reader) (string, er
 				}
 				mu.Lock()
 				ids[p.index] = id
+				if s.Progress != nil {
+					s.Progress(len(p.data))
+				}
 				mu.Unlock()
 			}
 		})
@@ -171,6 +178,9 @@ func (s *Store) Download(ctx context.Context, key []byte, id string, w io.Writer
 		if _, err := w.Write(result.data); err != nil {
 			cancel()
 			return err
+		}
+		if s.Progress != nil {
+			s.Progress(len(result.data))
 		}
 	}
 	return nil

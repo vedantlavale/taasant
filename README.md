@@ -4,19 +4,23 @@ Telegram lets a bot store files in a chat for free. taasant turns that into a li
 
 ```console
 $ taasant upload holiday.jpg
-104:BQACAgUAAxkDAAMG...
+✓ holiday.jpg  45.0 MiB  uploaded in 12.4s
 
 $ taasant list
-2026-10-05 12:09    45.0 MiB  holiday.jpg
-    104:BQACAgUAAxkDAAMG...
+  NAME               SIZE   UPLOADED
+  holiday.jpg    45.0 MiB   today 12:09
+  report.pdf      1.2 MiB   yesterday
+  notes.txt       4.0 KiB   3 Oct
+
+  3 files, 46.2 MiB
 
 $ taasant download hol
-saved holiday.jpg
+✓ saved holiday.jpg
 ```
 
 Everything is encrypted on your computer before it is sent, so Telegram only ever sees scrambled bytes. Big files are split up for you, and you get them back by name, not by some long ID.
 
-I built this to learn Go, so the code is small and uses nothing outside the standard library. It works, but treat it as a hobby project and not as your only backup.
+The code is small. The part that stores files uses nothing outside the standard library, and the menu is built with [Bubble Tea](https://github.com/charmbracelet/bubbletea). It works, but treat it as a hobby project and not as your only backup.
 
 Please be reasonable about what you store. This runs on Telegram's goodwill.
 
@@ -116,7 +120,28 @@ taasant list rep                   # search
 taasant download report            # get it back
 taasant download report copy.pdf   # get it back under another name
 taasant delete report              # remove it
+taasant update                     # get the newest version of taasant
 ```
+
+Or just type `taasant` on its own. That opens a menu you drive with the arrow keys, and it stays open until you press Q:
+
+- **Upload** shows the folder you are in. `→` opens a folder and `←` goes up. Space marks a file, and the marks stay as you move between folders. Enter uploads everything you marked, or the file under the cursor if you marked nothing.
+- **Files** shows what you have stored from this computer. A bot cannot ask Telegram what is in the chat, so the list is the one taasant keeps here.
+- **Download** and **Delete** show the same list, and Enter picks the file. A download lands in the folder you started taasant from. Delete asks first.
+
+While files are moving there is a line for each one, and Esc cancels the rest. Everywhere else Esc goes back to the menu.
+
+Uploads and downloads show a progress bar. It moves one part (19 MiB) at a time, so a small file jumps straight to done.
+
+### In scripts
+
+When the output is not a terminal, taasant drops the colours and the progress bar. `upload` then prints only the file's ID, so you can capture it:
+
+```bash
+id=$(taasant upload backup.tar)
+```
+
+Set `NO_COLOR=1` if you want plain text in a terminal too.
 
 ### You don't have to type the whole name
 
