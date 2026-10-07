@@ -246,3 +246,7 @@ go test -race ./...    # also checks for concurrency mistakes
 ## Credits
 
 The storage design was inspired by [golang-design/tgstore](https://github.com/golang-design/tgstore).
+
+## License
+
+[MIT](LICENSE). Use it, change it and share it freely; keep the copyright notice.
