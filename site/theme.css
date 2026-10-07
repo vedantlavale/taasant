@@ -108,3 +108,26 @@
   .brand:hover img { animation: turn .25s steps(3); }
 }
 @keyframes turn { from { transform: scaleX(.1); } to { transform: none; } }
+
+/* The footer, the same on every page: the question for the AI assistants,
+   the links, and the last line. */
+.site-foot { font-size: 14.5px; line-height: 1.6; color: var(--fg-muted); }
+.site-foot a { color: var(--fg-muted); }
+.site-foot a:hover { color: var(--fg); }
+.site-foot p { margin: 0; }
+.ask { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px; padding: 32px 0; border-bottom: 1px solid var(--line); }
+.ask-title { font-size: 18px; font-weight: 600; color: var(--fg); margin-bottom: 4px !important; }
+.ask-links { display: flex; gap: 10px; }
+.ask-btn { width: 44px; height: 44px; display: grid; place-items: center; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--fg) !important; }
+.ask-btn:hover { border-color: var(--accent); }
+.ask-btn svg { width: 20px; height: 20px; fill: currentColor; }
+.foot-cols { display: grid; grid-template-columns: 1.5fr repeat(3, 1fr); gap: 32px; padding: 36px 0; }
+.foot-cols nav a { display: block; padding: 3px 0; }
+.foot-h { font-weight: 600; color: var(--fg); margin-bottom: 8px !important; }
+.foot-brand { display: inline-flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 16px; font-weight: 600; color: var(--fg) !important; }
+.foot-brand img { width: auto; height: 20px; }
+.foot-end { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; padding: 20px 0 40px; border-top: 1px solid var(--line); font-size: 13.5px; color: var(--fg-faint); }
+@media (max-width: 700px) {
+  .foot-cols { grid-template-columns: 1fr 1fr; }
+  .foot-about { grid-column: 1 / -1; }
+}
