@@ -23,7 +23,11 @@ var logo = []string{
 	"   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝   ╚═╝",
 }
 
-// The colours are the terminal's own 16, so they follow the user's theme.
+// One colour for each line of the logo, from blue at the top to purple at
+// the bottom. A terminal that cannot show these gets the nearest it has.
+var logoColors = []string{"#3b82f6", "#4b7af6", "#5b73f6", "#6b6bf6", "#7b64f6", "#8b5cf6"}
+
+// The other colours are the terminal's own 16, so they follow the user's theme.
 var (
 	plain       = lipgloss.NewStyle()
 	dimStyle    = plain.Faint(true)
@@ -103,11 +107,11 @@ func short(dir string, limit int) string {
 
 func (m model) homeView() string {
 	// A terminal too narrow for the logo gets the name in plain letters.
-	heading := []string{goodStyle.Bold(true).Render("taasant")}
+	heading := []string{plain.Foreground(lipgloss.Color(logoColors[3])).Bold(true).Render("taasant")}
 	if m.width >= lipgloss.Width(logo[0]) {
 		heading = nil
-		for _, line := range logo {
-			heading = append(heading, goodStyle.Render(line))
+		for i, line := range logo {
+			heading = append(heading, plain.Foreground(lipgloss.Color(logoColors[i])).Render(line))
 		}
 	}
 	about := goodStyle.Render("Your files, encrypted, in Telegram.")
