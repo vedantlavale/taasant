@@ -183,13 +183,19 @@
   .sub { color: var(--fg-muted); margin: 0 0 36px; max-width: 38em; }
   h3 { font-size: 16.5px; font-weight: 600; margin: 0 0 4px; }
   .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px 56px; }
-  .grid p, .steps p { margin: 0; color: var(--fg-muted); }
-  .steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px 40px; list-style: none; padding: 0; margin: 0; counter-reset: step; }
-  .steps li { counter-increment: step; }
-  .steps li::before { content: "0" counter(step); display: block; margin-bottom: 10px; font-family: var(--mono); font-size: 13.5px; color: var(--accent); }
+  .grid p { margin: 0; color: var(--fg-muted); }
   code { font-family: var(--mono); font-size: .875em; background: var(--bg-soft); padding: 2px 5px; border-radius: 4px; }
   .cmd { margin: 0 0 20px; padding: 14px 16px; max-width: 640px; overflow-x: auto; background: var(--code-bg); border: 1px solid var(--line); border-radius: var(--radius); font-family: var(--mono); font-size: 13.5px; line-height: 1.7; color: var(--code-fg); }
   .cmd .c { color: var(--code-dim); }
+  /* The questions show only their first line until one is clicked. */
+  #faq h2, #faq .sub { text-align: center; margin-left: auto; margin-right: auto; }
+  .faq { max-width: 760px; margin: 0 auto; border-top: 1px solid var(--line); }
+  .faq details { border-bottom: 1px solid var(--line); }
+  .faq summary { display: flex; justify-content: space-between; gap: 16px; padding: 14px 0; font-weight: 600; cursor: pointer; list-style: none; }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary::after { content: "+"; color: var(--fg-faint); font-weight: 400; }
+  .faq details[open] summary::after { content: "−"; }
+  .faq p { margin: 0 0 16px; color: var(--fg-muted); }
   .note { margin: 28px 0 0; max-width: 640px; color: var(--fg-muted); font-size: 15px; }
 
   @media (max-width: 1000px) {
@@ -203,7 +209,7 @@
     .lede { font-size: 17.5px; }
     section { padding: 48px 0; }
     h2 { font-size: 23px; }
-    .grid, .steps { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+    .grid { grid-template-columns: minmax(0, 1fr); gap: 24px; }
     .term pre { padding: 14px; }
   }
 </style>
@@ -269,18 +275,6 @@
 
   <section>
     <div class="wrap">
-      <h2>How it works</h2>
-      <p class="sub">A bot can only download files up to 20 MB, so one big file becomes many small ones.</p>
-      <ol class="steps">
-        <li><h3>Split</h3><p>The file is read in parts that stay under Telegram's limit.</p></li>
-        <li><h3>Encrypt</h3><p>Each part is sealed with your key. A wrong key or a changed byte is detected.</p></li>
-        <li><h3>Send</h3><p>Each part goes out as its own message, followed by a small encrypted list of the parts.</p></li>
-      </ol>
-    </div>
-  </section>
-
-  <section>
-    <div class="wrap">
       <h2>Using it</h2>
       <p class="sub">Setting up takes about five minutes: make a bot, find your chat ID, make a key.</p>
 <pre class="cmd">taasant upload report.pdf     <span class="c"># store a file</span>
@@ -299,16 +293,16 @@ taasant update                <span class="c"># get the newest version</span></p
   <section id="faq">
     <div class="wrap">
       <h2>Questions</h2>
-      <p class="sub">The things people ask before they trust a tool with their files.</p>
-      <div class="grid">
-        <div><h3>Is taasant free?</h3><p>Yes. taasant is free and open source under the MIT license, and it uses the file storage Telegram gives every bot at no cost. There is no paid plan.</p></div>
-        <div><h3>Can Telegram read my files?</h3><p>No. Every file is encrypted on your computer with AES-256-GCM before it is uploaded, and the key never leaves your computer. Telegram stores scrambled parts, all named part.bin. It can see how many there are and how big they are, but not what is in them or what the files are called.</p></div>
-        <div><h3>Is taasant safe to use?</h3><p>It is a reasonable place for a second, encrypted copy of personal files. The encryption comes from Go's standard library and the source code is public. It has not had a professional security audit, and it depends on Telegram keeping the files, so do not make it the only copy of anything you cannot lose.</p></div>
-        <div><h3>How big can a file be?</h3><p>taasant sets no limit of its own. A Telegram bot can only download files up to 20 MB, so taasant cuts every file into 19 MiB parts and puts them back together on download. Very large files use a lot of memory while they download.</p></div>
-        <div><h3>What happens if I lose my key?</h3><p>The files are gone. The key is the only thing that can decrypt them, and nobody, including the author and Telegram, can recover it. Keep a copy in a password manager.</p></div>
-        <div><h3>Can I use it on two computers?</h3><p>Each computer keeps its own list of uploaded files, and the lists are not synced. With the same bot, chat and key on both, each one only sees the files it uploaded itself.</p></div>
-        <div><h3>Does it work on Windows and Linux?</h3><p>Yes. There are ready-made programs for macOS (Apple Silicon and Intel), Linux and Windows, and it can be built from source anywhere Go runs.</p></div>
-        <div><h3>Is taasant made by Telegram?</h3><p>No. taasant is an independent hobby project by Vedant Lavale. It talks to Telegram through the public Bot API.</p></div>
+      <p class="sub">Click a question to see the answer.</p>
+      <div class="faq">
+        <details><summary>Is taasant free?</summary><p>Yes. taasant is free and open source under the MIT license, and it uses the file storage Telegram gives every bot at no cost. There is no paid plan.</p></details>
+        <details><summary>Can Telegram read my files?</summary><p>No. Every file is encrypted on your computer with AES-256-GCM before it is uploaded, and the key never leaves your computer. Telegram stores scrambled parts, all named part.bin. It can see how many there are and how big they are, but not what is in them or what the files are called.</p></details>
+        <details><summary>Is taasant safe to use?</summary><p>It is a reasonable place for a second, encrypted copy of personal files. The encryption comes from Go's standard library and the source code is public. It has not had a professional security audit, and it depends on Telegram keeping the files, so do not make it the only copy of anything you cannot lose.</p></details>
+        <details><summary>How big can a file be?</summary><p>taasant sets no limit of its own. A Telegram bot can only download files up to 20 MB, so taasant cuts every file into 19 MiB parts and puts them back together on download. Very large files use a lot of memory while they download.</p></details>
+        <details><summary>What happens if I lose my key?</summary><p>The files are gone. The key is the only thing that can decrypt them, and nobody, including the author and Telegram, can recover it. Keep a copy in a password manager.</p></details>
+        <details><summary>Can I use it on two computers?</summary><p>Each computer keeps its own list of uploaded files, and the lists are not synced. With the same bot, chat and key on both, each one only sees the files it uploaded itself.</p></details>
+        <details><summary>Does it work on Windows and Linux?</summary><p>Yes. There are ready-made programs for macOS (Apple Silicon and Intel), Linux and Windows, and it can be built from source anywhere Go runs.</p></details>
+        <details><summary>Is taasant made by Telegram?</summary><p>No. taasant is an independent hobby project by Vedant Lavale. It talks to Telegram through the public Bot API.</p></details>
       </div>
     </div>
   </section>
