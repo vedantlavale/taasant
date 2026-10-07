@@ -48,3 +48,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$GITHUB_REF_NAME" "$RUNNER_TEMP"/dist/* --generate-notes
+
+      # Homebrew and Scoop read what to download from a second repository,
+      # vedantlavale/homebrew-tap. This step does nothing until the secret
+      # TAP_TOKEN exists: a token that may write to that repository.
+      - name: Update Homebrew and Scoop
+        env:
+          TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
+        run: |
+          if [ -z "$TAP_TOKEN" ]; then echo "There is no TAP_TOKEN secret, so this is skipped."; exit 0; fi
+          tap="$RUNNER_TEMP/tap"
+          git clone "https://x-access-token:$TAP_TOKEN@github.com/vedantlavale/homebrew-tap.git" "$tap"
+          sh .github/packages.sh "$GITHUB_REF_NAME" "$RUNNER_TEMP/dist" "$tap"
+          cd "$tap"
+          git add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "taasant $GITHUB_REF_NAME"
+          git push origin HEAD

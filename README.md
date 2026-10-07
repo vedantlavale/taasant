@@ -45,7 +45,13 @@ Please be reasonable about what you store. This runs on Telegram's goodwill.
 
 ### The quick way (macOS and Linux)
 
-Pick the line for your machine. No Go needed.
+One command downloads the right file and puts it in `/usr/local/bin`. No Go needed.
+
+```bash
+curl -fsSL https://taasant.vedantworks.com/install.sh | sh
+```
+
+Or do the same by hand. Pick the line for your machine:
 
 ```bash
 # Apple Silicon Mac

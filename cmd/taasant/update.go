@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
+	"strings"
 )
 
 const (
@@ -66,6 +67,14 @@ func update(ctx context.Context) error {
 	}
 	if err != nil {
 		return err
+	}
+	// Homebrew and Scoop keep their own record of the version they installed,
+	// so they have to do the updating.
+	if strings.Contains(target, "/Cellar/") {
+		return errors.New("this taasant was installed with Homebrew, update it with: brew upgrade taasant")
+	}
+	if strings.Contains(target, `\scoop\`) {
+		return errors.New("this taasant was installed with Scoop, update it with: scoop update taasant")
 	}
 
 	body, err = get(ctx, downloads+"/"+release.Tag+"/"+asset)
