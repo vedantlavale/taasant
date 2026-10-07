@@ -17,6 +17,7 @@
 
 - If the key is lost, the files cannot be recovered by anyone.
 - The code has not had a professional security audit.
+- Under its bot developer terms, Telegram might restrict a bot that is used for storage. Users are advised to create the bot from a second Telegram account.
 - Storage depends on Telegram continuing to keep bot files. It should not be the only copy of anything important.
 - A bot can delete its messages only for 48 hours after sending them.
 - The index is not synced between computers.

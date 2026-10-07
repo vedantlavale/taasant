@@ -443,8 +443,8 @@ e61b87d5a30c94f2
 
         <div class="callout warn">
           <svg class="i"><use href="#i-alert"/></svg>
-          <div><b>Be reasonable about what you store</b>
-          <p>taasant runs on Telegram's goodwill. Keep a copy of anything important somewhere else too.</p></div>
+          <div><b>A tip before you start</b>
+          <p>Telegram might restrict a bot that is used this way. To be safe, make your bot from a second Telegram account, and keep a copy of anything important somewhere else. See <a href="#limits">Limits</a>.</p></div>
         </div>
       </section>
 
@@ -521,6 +521,12 @@ go build -o taasant ./cmd/taasant</pre></div>
       <section class="page" id="p-setup" data-title="Set it up" data-group="Get started">
         <h1>Set it up</h1>
         <p class="lede">About five minutes, once. You need three things: a bot token, your chat ID, and an encryption key.</p>
+
+        <div class="callout warn">
+          <svg class="i"><use href="#i-alert"/></svg>
+          <div><b>Tip: use a second Telegram account</b>
+          <p>Telegram might restrict a bot that is used this way. To be safe, make the bot from a second account, not your main one.</p></div>
+        </div>
 
         <ol class="steps">
           <li>
@@ -746,7 +752,7 @@ taasant update                     # get the newest version of taasant</pre></di
           <div class="row"><h3>Delete window</h3><p>Telegram lets a bot delete messages for 48 hours after sending them. After that, <code>taasant delete</code> fails and you would have to remove the messages by hand in the app.</p></div>
           <div class="row"><h3>Memory</h3><p>Files are handled in 19 MiB parts and several are in memory at once. A very large download can use a lot, because all its parts are fetched together.</p></div>
           <div class="row"><h3>One computer</h3><p>The index is not synced. If you use taasant on two machines, each has its own list.</p></div>
-          <div class="row"><h3>Telegram's goodwill</h3><p>This is free storage Telegram provides for bots. Please be reasonable about what you store.</p></div>
+          <div class="row"><h3>Telegram's terms</h3><p>Under its <a href="https://telegram.org/tos/bot-developers">bot developer terms</a>, Telegram might restrict a bot that is used for storage. To be safe, make the bot from a second account, keep another copy of your files, and be reasonable about how much you store.</p></div>
         </div>
       </section>
 

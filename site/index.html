@@ -81,7 +81,15 @@
       "name": "Is taasant safe to use?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "It is a reasonable place for a second, encrypted copy of personal files. The encryption comes from Go's standard library and the source code is public. It has not had a professional security audit, and it depends on Telegram keeping the files, so do not make it the only copy of anything you cannot lose."
+        "text": "Your files are private: they are encrypted on your computer with Go's standard library, and the source code is public. The code has not had a professional security audit, and Telegram makes no promise to keep the files. To be safe, create the bot from a second Telegram account, and do not make it the only copy of anything you cannot lose."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can my Telegram account get banned for using taasant?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "taasant only works through a bot and never logs in to your own account. Telegram might restrict a bot that is used this way, so to be safe, create the bot from a second Telegram account."
       }
     },
     {
@@ -286,7 +294,7 @@ taasant update                <span class="c"># get the newest version</span></p
         <a class="btn" href="docs.html#setup">Set it up</a>
         <a class="btn" href="docs.html#usage">All commands</a>
       </div>
-      <p class="note">taasant is a hobby project and runs on Telegram's goodwill. Be reasonable about what you store, and keep a copy of anything important somewhere else. If you lose your key, your files cannot be recovered.</p>
+      <p class="note">taasant is a hobby project. To be safe, create the bot from a second Telegram account, be reasonable about what you store, and keep a copy of anything important somewhere else. If you lose your key, your files cannot be recovered.</p>
     </div>
   </section>
 
@@ -297,7 +305,8 @@ taasant update                <span class="c"># get the newest version</span></p
       <div class="faq">
         <details><summary>Is taasant free?</summary><p>Yes. taasant is free and open source under the MIT license, and it uses the file storage Telegram gives every bot at no cost. There is no paid plan.</p></details>
         <details><summary>Can Telegram read my files?</summary><p>No. Every file is encrypted on your computer with AES-256-GCM before it is uploaded, and the key never leaves your computer. Telegram stores scrambled parts, all named part.bin. It can see how many there are and how big they are, but not what is in them or what the files are called.</p></details>
-        <details><summary>Is taasant safe to use?</summary><p>It is a reasonable place for a second, encrypted copy of personal files. The encryption comes from Go's standard library and the source code is public. It has not had a professional security audit, and it depends on Telegram keeping the files, so do not make it the only copy of anything you cannot lose.</p></details>
+        <details><summary>Is taasant safe to use?</summary><p>Your files are private: they are encrypted on your computer with Go's standard library, and the source code is public. The code has not had a professional security audit, and Telegram makes no promise to keep the files. To be safe, create the bot from a second Telegram account, and do not make it the only copy of anything you cannot lose.</p></details>
+        <details><summary>Can my Telegram account get banned for using taasant?</summary><p>taasant only works through a bot and never logs in to your own account. Telegram might restrict a bot that is used this way, so to be safe, create the bot from a second Telegram account.</p></details>
         <details><summary>How big can a file be?</summary><p>taasant sets no limit of its own. A Telegram bot can only download files up to 20 MB, so taasant cuts every file into 19 MiB parts and puts them back together on download. Very large files use a lot of memory while they download.</p></details>
         <details><summary>What happens if I lose my key?</summary><p>The files are gone. The key is the only thing that can decrypt them, and nobody, including the author and Telegram, can recover it. Keep a copy in a password manager.</p></details>
         <details><summary>Can I use it on two computers?</summary><p>Each computer keeps its own list of uploaded files, and the lists are not synced. With the same bot, chat and key on both, each one only sees the files it uploaded itself.</p></details>
