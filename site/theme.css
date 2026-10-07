@@ -1,0 +1,86 @@
+/* Colours and fonts, shared by the landing page and the docs. */
+:root {
+  --bg: #ffffff;
+  --bg-soft: #f6f6f8;
+  --fg: #17171c;
+  --fg-muted: #4d4d58;
+  --fg-faint: #6e6e7a;
+  --line: #e6e6ea;
+  --line-strong: #d3d3da;
+  --accent: #4a45d6;
+  --accent-fg: #ffffff;
+  --accent-soft: #eeeefc;
+  --warn: #8f4e06;
+  --warn-soft: #fbf3e4;
+  --danger: #ad2218;
+  --danger-soft: #fceeec;
+  --code-bg: #f6f6f8;
+  --code-fg: #22222a;
+  --code-dim: #6e6e7a;
+  --code-accent: #4a45d6;
+  --code-str: #8f4e06;
+  --sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --radius: 6px;
+  --header-h: 56px;
+  --sidebar-w: 256px;
+  --toc-w: 212px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f0f13;
+    --bg-soft: #17171d;
+    --fg: #ececf1;
+    --fg-muted: #a9a9b6;
+    --fg-faint: #858593;
+    --line: #25252d;
+    --line-strong: #34343f;
+    --accent: #a3a8fb;
+    --accent-fg: #0f0f13;
+    --accent-soft: #1d1d38;
+    --warn: #e9b05c;
+    --warn-soft: #231a0b;
+    --danger: #f98c80;
+    --danger-soft: #271412;
+    --code-bg: #17171d;
+    --code-fg: #dcdce4;
+    --code-dim: #858593;
+    --code-accent: #a3a8fb;
+    --code-str: #e9b05c;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f0f13;
+  --bg-soft: #17171d;
+  --fg: #ececf1;
+  --fg-muted: #a9a9b6;
+  --fg-faint: #858593;
+  --line: #25252d;
+  --line-strong: #34343f;
+  --accent: #a3a8fb;
+  --accent-fg: #0f0f13;
+  --accent-soft: #1d1d38;
+  --warn: #e9b05c;
+  --warn-soft: #231a0b;
+  --danger: #f98c80;
+  --danger-soft: #271412;
+  --code-bg: #17171d;
+  --code-fg: #dcdce4;
+  --code-dim: #858593;
+  --code-accent: #a3a8fb;
+  --code-str: #e9b05c;
+}
+
+/* A screen of the menu, as it looks in a terminal. Dark in both themes, like
+   most terminals. The text inside is what taasant really prints. */
+.term { margin: 0 0 8px; background: #121217; border: 1px solid #2a2a33; border-radius: 8px; overflow-x: auto; }
+.term pre { margin: 0; padding: 18px 20px; font-family: Menlo, "DejaVu Sans Mono", Consolas, "Liberation Mono", monospace; font-size: clamp(8px, 2.2vw, 13px); line-height: 1.5; color: #d9d9e3; }
+.term .logo { display: block; line-height: 1; margin-bottom: .5em; }
+.term .r { color: #f07178; }
+.term .g { color: #6fcf97; }
+.term .y { color: #e5c07b; }
+.term .b { color: #7aa7f7; }
+.term .m { color: #c792ea; }
+.term .d { color: #7d7d8c; }
+.term .bd { font-weight: 700; }
+.term .e { display: inline-block; width: 2ch; }
