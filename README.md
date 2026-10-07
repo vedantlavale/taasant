@@ -36,7 +36,7 @@ Everything is encrypted on your computer before it is sent, so Telegram only eve
 
 The code is small. The part that stores files uses nothing outside the standard library, and the menu is built with [Bubble Tea](https://github.com/charmbracelet/bubbletea). It works, but treat it as a hobby project and not as your only backup.
 
-Please be reasonable about what you store. This runs on Telegram's goodwill.
+Under its [bot terms](https://telegram.org/tos/bot-developers), Telegram might restrict a bot that is used for storage. To be safe, make the bot from a second Telegram account, and be reasonable about what you store.
 
 ## New in version 0.2
 
@@ -118,7 +118,7 @@ You need Go 1.27 or newer.
 
 This takes about five minutes, and you only do it once. You need three things: a bot, your chat ID, and a key.
 
-**1. Make a bot.** In Telegram, open a chat with [@BotFather](https://t.me/BotFather), send `/newbot`, and answer its two questions. It hands you a token that looks like `123456:ABC...`.
+**1. Make a bot.** Use a spare Telegram account for this if you can. In Telegram, open a chat with [@BotFather](https://t.me/BotFather), send `/newbot`, and answer its two questions. It hands you a token that looks like `123456:ABC...`.
 
 **2. Say hello to your bot.** Open the bot you just made and press **Start**. This matters: a bot is not allowed to message you until you have messaged it.
 
@@ -210,6 +210,7 @@ If a file with that name already exists where you are, `download` stops with `fi
 - **Look after the index.** If you lose it, your files are still in the chat, but taasant no longer knows which messages are which. Copying the `taas` folder somewhere safe now and then is enough.
 - **You can only delete recent files.** Telegram lets a bot delete messages for 48 hours after sending them. After that, `taasant delete` will fail, and you would have to remove the messages by hand in the app.
 - **Big files need memory.** Files are handled in 19 MiB parts and several are in memory at once. A very large download can use a lot, because all its parts are fetched together.
+- **Use a second Telegram account for the bot.** Telegram might restrict a bot that is used for storage, so keep your main account out of it.
 - **One computer.** The index is not synced. If you use taasant on two machines, each has its own list.
 
 ## When something goes wrong

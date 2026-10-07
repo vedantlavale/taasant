@@ -96,7 +96,8 @@
   <li><b>You lose the key.</b> Then the files are gone. There is no reset link and nobody to ask, me included. Put a copy in a password manager on the day you make it.</li>
   <li><b>Someone gets the key.</b> It sits in your shell's settings file, so anyone who can read the files of your user account can read it. The key alone is not enough, though. They would also need the encrypted files, which means your bot or your Telegram account.</li>
   <li><b>Someone gets only the bot token.</b> They could act as your bot and make a mess. They could not read your files, because the token does not decrypt anything.</li>
-  <li><b>Telegram stops keeping the files.</b> A banned account, a removed bot, a change of policy. This is free storage and it comes with no promise.</li>
+  <li><b>Telegram changes its mind.</b> Under its <a href="https://telegram.org/tos/bot-developers">bot developer terms</a>, Telegram might restrict a bot that is used for storage. To be safe, make the bot from a second Telegram account.</li>
+  <li><b>Telegram stops keeping the files.</b> A removed bot, a change of policy. This is free storage and it comes with no promise.</li>
   <li><b>You lose the list of files.</b> It lives on one computer. Without it the files are still in the chat, but taasant no longer knows which messages are which. Copy the <code>taas</code> folder somewhere safe now and then.</li>
 </ul>
 
@@ -104,7 +105,8 @@
 <p>Not professionally. taasant is a hobby project and has had no security audit. What it does have is public source code under the MIT license, a couple of thousand lines of Go with the tests included. The encryption is one file of about thirty lines, <a href="https://github.com/vedantlavale/taasant/blob/master/tgstore/crypto.go"><code>tgstore/crypto.go</code></a>. Read it. If you find a problem, <a href="https://github.com/vedantlavale/taasant/issues">open an issue</a>.</p>
 
 <h2>So, is it safe?</h2>
-<p>For a second, encrypted copy of your own files, I think it is a reasonable choice, and that is the job it is designed for.</p>
+<p>Your files are private. That part I am confident about.</p>
+<p>What nobody can promise is that Telegram will go on allowing it. So for a second, encrypted copy of your own files, kept through a spare Telegram account, I think it is a reasonable choice, and that is the job it is designed for.</p>
 <p>For the only copy of something you cannot lose, or for anything where a person's safety depends on it staying secret, use something that has been audited and that someone is paid to keep running.</p>
   </article>
 </main>
