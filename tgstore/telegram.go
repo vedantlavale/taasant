@@ -16,6 +16,9 @@ import (
 
 const maxAttempts = 5
 
+// retryWait is the pause before trying again after a broken connection.
+var retryWait = time.Second
+
 type apiResponse struct {
 	OK          bool            `json:"ok"`
 	Description string          `json:"description"`
@@ -25,19 +28,39 @@ type apiResponse struct {
 	} `json:"parameters"`
 }
 
-func (s *Store) call(ctx context.Context, method, contentType string, body []byte, result any) error {
+// call sends one request to Telegram and tries again when that can help: the
+// connection broke, Telegram is busy, or it asked us to slow down. sent, if
+// not nil, is told how much of the body has gone out so far; after a failed
+// attempt the count starts again from zero.
+func (s *Store) call(ctx context.Context, method, contentType string, body []byte, sent func(done, total int), result any) error {
 	target := s.Endpoint + "/bot" + s.Token + "/" + method
 
 	for attempt := 1; ; attempt++ {
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, target, bytes.NewReader(body))
+		var reader io.Reader = bytes.NewReader(body)
+		if sent != nil {
+			reader = &countingReader{reader: reader, total: len(body), report: sent}
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, target, reader)
 		if err != nil {
 			return err
 		}
+		req.ContentLength = int64(len(body))
 		req.Header.Set("Content-Type", contentType)
 
 		res, err := s.Client.Do(req)
 		if err != nil {
-			return err
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			if attempt == maxAttempts {
+				return fmt.Errorf("telegram %s: %w", method, withoutURL(err))
+			}
+			select {
+			case <-time.After(retryWait):
+				continue
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 		}
 		var r apiResponse
 		err = json.NewDecoder(res.Body).Decode(&r)
@@ -66,7 +89,31 @@ func (s *Store) call(ctx context.Context, method, contentType string, body []byt
 	}
 }
 
-func (s *Store) sendFile(ctx context.Context, data []byte) (stored, error) {
+// withoutURL drops the address from a network error. The address has the
+// bot token in it, which must not end up on screen or in a bug report.
+func withoutURL(err error) error {
+	var failed *url.Error
+	if errors.As(err, &failed) {
+		return failed.Err
+	}
+	return err
+}
+
+// countingReader reports how much has been read through it.
+type countingReader struct {
+	reader      io.Reader
+	done, total int
+	report      func(done, total int)
+}
+
+func (c *countingReader) Read(p []byte) (int, error) {
+	n, err := c.reader.Read(p)
+	c.done += n
+	c.report(c.done, c.total)
+	return n, err
+}
+
+func (s *Store) sendFile(ctx context.Context, data []byte, sent func(done, total int)) (stored, error) {
 	var body bytes.Buffer
 	form := multipart.NewWriter(&body)
 	form.WriteField("chat_id", strconv.FormatInt(s.ChatID, 10))
@@ -84,7 +131,7 @@ func (s *Store) sendFile(ctx context.Context, data []byte) (stored, error) {
 			FileID string `json:"file_id"`
 		} `json:"document"`
 	}
-	err = s.call(ctx, "sendDocument", form.FormDataContentType(), body.Bytes(), &message)
+	err = s.call(ctx, "sendDocument", form.FormDataContentType(), body.Bytes(), sent, &message)
 	if err != nil {
 		return stored{}, err
 	}
@@ -100,15 +147,15 @@ func (s *Store) deleteMessage(ctx context.Context, messageID int) error {
 		"message_id": {strconv.Itoa(messageID)},
 	}.Encode()
 	var deleted bool
-	return s.call(ctx, "deleteMessage", "application/x-www-form-urlencoded", []byte(query), &deleted)
+	return s.call(ctx, "deleteMessage", "application/x-www-form-urlencoded", []byte(query), nil, &deleted)
 }
 
-func (s *Store) fetchFile(ctx context.Context, id string) ([]byte, error) {
+func (s *Store) fetchFile(ctx context.Context, id string, received func(done, total int)) ([]byte, error) {
 	var file struct {
 		FilePath string `json:"file_path"`
 	}
 	query := url.Values{"file_id": {id}}.Encode()
-	err := s.call(ctx, "getFile", "application/x-www-form-urlencoded", []byte(query), &file)
+	err := s.call(ctx, "getFile", "application/x-www-form-urlencoded", []byte(query), nil, &file)
 	if err != nil {
 		return nil, err
 	}
@@ -120,12 +167,16 @@ func (s *Store) fetchFile(ctx context.Context, id string) ([]byte, error) {
 	}
 	res, err := s.Client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("telegram file download: %w", withoutURL(err))
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("telegram file download: %s", res.Status)
 	}
-	return io.ReadAll(res.Body)
+	var body io.Reader = res.Body
+	if received != nil {
+		body = &countingReader{reader: body, total: int(res.ContentLength), report: received}
+	}
+	return io.ReadAll(body)
 }

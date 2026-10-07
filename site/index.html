@@ -684,7 +684,7 @@ taasant update                     # get the newest version of taasant</pre></di
         </ul>
 
         <h2 id="progress">Progress</h2>
-        <p>Uploads and downloads show a progress bar. It moves one part (19 MiB) at a time, so a small file jumps straight to done.</p>
+        <p>Uploads and downloads show a progress bar that moves as the bytes go out. If the connection drops, taasant tries again a few times before it gives up.</p>
 
         <h2 id="scripts">In scripts</h2>
         <p>When the output is not a terminal, taasant drops the colours and the progress bar. <code>upload</code> then prints only the file's ID, so you can capture it:</p>

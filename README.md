@@ -131,7 +131,7 @@ Or just type `taasant` on its own. That opens a menu you drive with the arrow ke
 
 While files are moving there is a line for each one, and Esc cancels the rest. Everywhere else Esc goes back to the menu.
 
-Uploads and downloads show a progress bar. It moves one part (19 MiB) at a time, so a small file jumps straight to done.
+Uploads and downloads show a progress bar that moves as the bytes go out. If the connection drops, taasant tries again a few times before it gives up.
 
 ### In scripts
 
