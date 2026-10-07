@@ -7,3 +7,4 @@ hello.go
 DOC.md
 .DS_Store
 !/site/*.html
+!/site/blog/*.html

@@ -1,0 +1,66 @@
+# Pushing a tag like v0.2.0 builds taasant for every system and publishes
+# a release with the files attached:
+#
+#   git tag v0.2.0 && git push origin v0.2.0
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Go reads the version from the git tags
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - run: go test ./...
+
+      # The files go outside the repository: Go marks a build "+dirty" when
+      # the folder holds files git does not know, and "taasant update"
+      # compares the version exactly. It also finds these files by name.
+      - name: Build
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          out="$RUNNER_TEMP/dist"
+          GOOS=linux   GOARCH=amd64 go build -trimpath -o "$out/taasant-linux-amd64"  ./cmd/taasant
+          GOOS=darwin  GOARCH=arm64 go build -trimpath -o "$out/taasant-macos-arm64"  ./cmd/taasant
+          GOOS=darwin  GOARCH=amd64 go build -trimpath -o "$out/taasant-macos-intel"  ./cmd/taasant
+          GOOS=windows GOARCH=amd64 go build -trimpath -o "$out/taasant-windows.exe"  ./cmd/taasant
+
+      - name: Check the version inside the program
+        run: |
+          got=$("$RUNNER_TEMP/dist/taasant-linux-amd64" version)
+          echo "$got"
+          test "$got" = "taasant $GITHUB_REF_NAME"
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" "$RUNNER_TEMP"/dist/* --generate-notes
+
+      # Homebrew and Scoop read what to download from a second repository,
+      # vedantlavale/homebrew-tap. This step does nothing until the secret
+      # TAP_TOKEN exists: a token that may write to that repository.
+      - name: Update Homebrew and Scoop
+        env:
+          TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
+        run: |
+          if [ -z "$TAP_TOKEN" ]; then echo "There is no TAP_TOKEN secret, so this is skipped."; exit 0; fi
+          tap="$RUNNER_TEMP/tap"
+          git clone "https://x-access-token:$TAP_TOKEN@github.com/vedantlavale/homebrew-tap.git" "$tap"
+          sh .github/packages.sh "$GITHUB_REF_NAME" "$RUNNER_TEMP/dist" "$tap"
+          cd "$tap"
+          git add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "taasant $GITHUB_REF_NAME"
+          git push origin HEAD

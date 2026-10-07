@@ -1,0 +1,133 @@
+/* Colours and fonts, shared by the landing page and the docs. */
+:root {
+  --bg: #ffffff;
+  --bg-soft: #f6f6f8;
+  --fg: #17171c;
+  --fg-muted: #4d4d58;
+  --fg-faint: #6e6e7a;
+  --line: #e6e6ea;
+  --line-strong: #d3d3da;
+  --accent: #4a45d6;
+  --accent-fg: #ffffff;
+  --accent-soft: #eeeefc;
+  --warn: #8f4e06;
+  --warn-soft: #fbf3e4;
+  --danger: #ad2218;
+  --danger-soft: #fceeec;
+  --code-bg: #f6f6f8;
+  --code-fg: #22222a;
+  --code-dim: #6e6e7a;
+  --code-accent: #4a45d6;
+  --code-str: #8f4e06;
+  --sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --radius: 6px;
+  --header-h: 56px;
+  --sidebar-w: 256px;
+  --toc-w: 212px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f0f13;
+    --bg-soft: #17171d;
+    --fg: #ececf1;
+    --fg-muted: #a9a9b6;
+    --fg-faint: #858593;
+    --line: #25252d;
+    --line-strong: #34343f;
+    --accent: #a3a8fb;
+    --accent-fg: #0f0f13;
+    --accent-soft: #1d1d38;
+    --warn: #e9b05c;
+    --warn-soft: #231a0b;
+    --danger: #f98c80;
+    --danger-soft: #271412;
+    --code-bg: #17171d;
+    --code-fg: #dcdce4;
+    --code-dim: #858593;
+    --code-accent: #a3a8fb;
+    --code-str: #e9b05c;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f0f13;
+  --bg-soft: #17171d;
+  --fg: #ececf1;
+  --fg-muted: #a9a9b6;
+  --fg-faint: #858593;
+  --line: #25252d;
+  --line-strong: #34343f;
+  --accent: #a3a8fb;
+  --accent-fg: #0f0f13;
+  --accent-soft: #1d1d38;
+  --warn: #e9b05c;
+  --warn-soft: #231a0b;
+  --danger: #f98c80;
+  --danger-soft: #271412;
+  --code-bg: #17171d;
+  --code-fg: #dcdce4;
+  --code-dim: #858593;
+  --code-accent: #a3a8fb;
+  --code-str: #e9b05c;
+}
+
+/* A screen of the menu, as it looks in a terminal. Dark in both themes, like
+   most terminals. The text inside is what taasant really prints. */
+.term { margin: 0 0 8px; background: #121217; border: 1px solid #2a2a33; border-radius: 8px; overflow-x: auto; }
+.term pre { margin: 0; padding: 18px 20px; font-family: Menlo, "DejaVu Sans Mono", Consolas, "Liberation Mono", monospace; font-size: clamp(8px, 2.2vw, 13px); line-height: 1.5; color: #d9d9e3; }
+.term .logo { display: block; line-height: 1; margin-bottom: .5em; }
+.term .r { color: #f07178; }
+.term .g { color: #6fcf97; }
+.term .y { color: #e5c07b; }
+.term .b { color: #7aa7f7; }
+.term .m { color: #c792ea; }
+.term .d { color: #7d7d8c; }
+.term .bd { font-weight: 700; }
+.term .e { display: inline-block; width: 2ch; }
+
+/* The link to GitHub in the header, with the number of stars beside the logo. */
+.gh { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: var(--radius); color: var(--fg-muted); font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gh:hover { border-color: var(--fg-faint); color: var(--fg); text-decoration: none; }
+.header-actions .gh { margin-right: 6px; }
+.star { color: #e3a008; }
+.btn.primary .star { color: #ffd54a; }
+
+/* The ant on the line above the footer. ant.js puts it there and decides
+   what it does. Without that script the logo just stands on the line. */
+.ant-track { height: 34px; overflow: hidden; position: relative; border-bottom: 1px solid var(--line); }
+.ant-track img, .ant-track svg { position: absolute; left: 0; bottom: 0; width: 42px; height: 22px; }
+.ant-track img { left: 24px; }
+.ant-track .b, .ant-track .alt .a { visibility: hidden; }
+.ant-track .alt .b { visibility: visible; }
+.ant-track .twitch .antenna { transform: translate(-1px, 1px); }
+
+/* The logo in the header says hi when the pointer is on it: it turns to
+   face you and waves. The turn is the drawing getting wider in three jumps. */
+.brand:hover img { content: url(logo-front.svg); }
+@media (prefers-reduced-motion: no-preference) {
+  .brand:hover img { animation: turn .25s steps(3); }
+}
+@keyframes turn { from { transform: scaleX(.1); } to { transform: none; } }
+
+/* The footer, the same on every page: the question for the AI assistants,
+   the links, and the last line. */
+.site-foot { font-size: 14.5px; line-height: 1.6; color: var(--fg-muted); }
+.site-foot a { color: var(--fg-muted); }
+.site-foot a:hover { color: var(--fg); }
+.site-foot p { margin: 0; }
+.ask { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px; padding: 32px 0; border-bottom: 1px solid var(--line); }
+.ask-title { font-size: 18px; font-weight: 600; color: var(--fg); margin-bottom: 4px !important; }
+.ask-links { display: flex; gap: 10px; }
+.ask-btn { width: 44px; height: 44px; display: grid; place-items: center; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--fg) !important; }
+.ask-btn:hover { border-color: var(--accent); }
+.ask-btn svg { width: 20px; height: 20px; fill: currentColor; }
+.foot-cols { display: grid; grid-template-columns: 1.5fr repeat(3, 1fr); gap: 32px; padding: 36px 0; }
+.foot-cols nav a { display: block; padding: 3px 0; }
+.foot-h { font-weight: 600; color: var(--fg); margin-bottom: 8px !important; }
+.foot-brand { display: inline-flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 16px; font-weight: 600; color: var(--fg) !important; }
+.foot-brand img { width: auto; height: 20px; }
+.foot-end { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; padding: 20px 0 40px; border-top: 1px solid var(--line); font-size: 13.5px; color: var(--fg-faint); }
+@media (max-width: 700px) {
+  .foot-cols { grid-template-columns: 1fr 1fr; }
+  .foot-about { grid-column: 1 / -1; }
+}

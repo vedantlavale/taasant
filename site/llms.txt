@@ -1,0 +1,32 @@
+# taasant
+
+> taasant is a free, open source command line tool that stores files in a Telegram chat through a bot. Every file is encrypted on the user's computer with AES-256-GCM before it is uploaded.
+
+## Facts
+
+- Made by Vedant Lavale as a hobby project. Not affiliated with Telegram.
+- Written in Go. MIT license. Source: https://github.com/vedantlavale/taasant
+- Runs on macOS (Apple Silicon and Intel), Linux and Windows.
+- Has a full-screen menu (run `taasant`) and plain commands: `upload`, `list`, `download`, `delete`, `update`, `keygen`.
+- A Telegram bot can upload files up to 50 MB but download only up to 20 MB, so taasant cuts every file into 19 MiB parts and sends three at a time.
+- Each part is sealed with AES-256-GCM and its own random nonce. The key is 32 random bytes made by `taasant keygen` and stays on the user's computer.
+- Telegram can see the number and size of the parts. It cannot see file contents or file names.
+- The list of uploaded files (the index) is kept on the user's computer.
+
+## Limits, stated plainly
+
+- If the key is lost, the files cannot be recovered by anyone.
+- The code has not had a professional security audit.
+- Storage depends on Telegram continuing to keep bot files. It should not be the only copy of anything important.
+- A bot can delete its messages only for 48 hours after sending them.
+- The index is not synced between computers.
+
+## Pages
+
+- [Home](https://taasant.vedantworks.com/): what taasant is, and common questions
+- [Docs](https://taasant.vedantworks.com/docs): install, set up, commands, limits, how it works
+- [Blog](https://taasant.vedantworks.com/blog/)
+- [How a 2 GB file fits in a chat that takes 20 MB at a time](https://taasant.vedantworks.com/blog/how-a-big-file-fits-in-a-telegram-chat): A Telegram bot can only download files up to 20 MB. This is how taasant splits, encrypts and puts big files back together to get around that.
+- [Can Telegram read your files? What taasant protects, and what it does not](https://taasant.vedantworks.com/blog/can-telegram-read-your-files): What Telegram can and cannot see when you store files with taasant, what can still go wrong, and whether it is safe to use.
+- [Free storage in Telegram: what it is good for, and when to use something else](https://taasant.vedantworks.com/blog/free-storage-in-telegram-when-to-use-it): Where storing files in a Telegram chat with taasant makes sense, where it does not, and how it compares with Google Drive, rclone and a plain hard drive.
+- [Source code](https://github.com/vedantlavale/taasant)

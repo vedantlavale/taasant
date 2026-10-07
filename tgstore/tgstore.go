@@ -26,6 +26,12 @@ type Store struct {
 	Workers  int
 	Client   *http.Client
 
+	// Progress, if set, is called with a number of bytes each time some more
+	// of the object has been uploaded or downloaded. The numbers add up to
+	// the size of the object. One can be negative: after a failed attempt a
+	// part starts again from zero. Calls never overlap.
+	Progress func(bytes int)
+
 	partSize int
 }
 
@@ -84,11 +90,23 @@ func (s *Store) Upload(ctx context.Context, key []byte, r io.Reader) (string, er
 	for range max(s.Workers, 1) {
 		wg.Go(func() {
 			for p := range parts {
-				id, err := s.sendFile(ctx, seal(aead, p.data))
+				// counted is how much of this part Progress has heard of.
+				counted := 0
+				report := func(done, total int) {
+					now := int(int64(done) * int64(len(p.data)) / int64(total))
+					mu.Lock()
+					if s.Progress != nil {
+						s.Progress(now - counted)
+					}
+					counted = now
+					mu.Unlock()
+				}
+				id, err := s.sendFile(ctx, seal(aead, p.data), report)
 				if err != nil {
 					fail(err)
 					continue
 				}
+				report(1, 1)
 				mu.Lock()
 				ids[p.index] = id
 				mu.Unlock()
@@ -129,7 +147,7 @@ func (s *Store) Upload(ctx context.Context, key []byte, r io.Reader) (string, er
 	if err != nil {
 		return "", err
 	}
-	sent, err := s.sendFile(ctx, seal(aead, data))
+	sent, err := s.sendFile(ctx, seal(aead, data), nil)
 	if err != nil {
 		return "", err
 	}
@@ -154,15 +172,27 @@ func (s *Store) Download(ctx context.Context, key []byte, id string, w io.Writer
 	results := make([]chan result, len(m.Parts))
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
+	// counted is how much of each part Progress has heard of.
+	var mu sync.Mutex
+	counted := make([]int, len(m.Parts))
+	report := func(i, now int) {
+		mu.Lock()
+		if s.Progress != nil {
+			s.Progress(now - counted[i])
+		}
+		counted[i] = now
+		mu.Unlock()
+	}
 	for i, p := range m.Parts {
 		ch := make(chan result, 1)
 		results[i] = ch
 		go func() {
-			data, err := s.fetchPart(ctx, aead, p.FileID)
+			data, err := s.fetchPart(ctx, aead, p.FileID, func(done, total int) { report(i, done) })
 			ch <- result{data: data, err: err}
 		}()
 	}
-	for _, ch := range results {
+	for i, ch := range results {
 		result := <-ch
 		if result.err != nil {
 			cancel()
@@ -172,6 +202,8 @@ func (s *Store) Download(ctx context.Context, key []byte, id string, w io.Writer
 			cancel()
 			return err
 		}
+		// What arrived was encrypted and a little larger, so settle on the real size.
+		report(i, len(result.data))
 	}
 	return nil
 }
@@ -204,7 +236,7 @@ func (s *Store) fetchManifest(ctx context.Context, aead cipher.AEAD, id string) 
 		return m, 0, errors.New("invalid object id")
 	}
 
-	data, err := s.fetchPart(ctx, aead, fileID)
+	data, err := s.fetchPart(ctx, aead, fileID, nil)
 	if err != nil {
 		return m, 0, err
 	}
@@ -212,8 +244,8 @@ func (s *Store) fetchManifest(ctx context.Context, aead cipher.AEAD, id string) 
 	return m, messageID, err
 }
 
-func (s *Store) fetchPart(ctx context.Context, aead cipher.AEAD, id string) ([]byte, error) {
-	data, err := s.fetchFile(ctx, id)
+func (s *Store) fetchPart(ctx context.Context, aead cipher.AEAD, id string, received func(done, total int)) ([]byte, error) {
+	data, err := s.fetchFile(ctx, id, received)
 	if err != nil {
 		return nil, err
 	}

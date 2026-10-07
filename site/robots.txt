@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://taasant.vedantworks.com/sitemap.xml
