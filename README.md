@@ -1,6 +1,16 @@
+<p align="center">
+  <img src="site/logo.svg" width="170" alt="The taasant logo: a purple pixel ant">
+</p>
+
 # taasant
 
 Telegram lets a bot store files in a chat for free. taasant turns that into a little encrypted drive you use from the terminal.
+
+Docs: [taasant.vedantworks.com](https://taasant.vedantworks.com)
+
+![The taasant menu: Upload, Files, Download and Delete](assets/menu-home.png)
+
+Type `taasant` in a folder to get this menu, or use plain commands:
 
 ```console
 $ taasant upload holiday.jpg
@@ -23,6 +33,13 @@ Everything is encrypted on your computer before it is sent, so Telegram only eve
 The code is small. The part that stores files uses nothing outside the standard library, and the menu is built with [Bubble Tea](https://github.com/charmbracelet/bubbletea). It works, but treat it as a hobby project and not as your only backup.
 
 Please be reasonable about what you store. This runs on Telegram's goodwill.
+
+## New in version 0.2
+
+- **A menu.** Run `taasant` with nothing after it to browse folders, mark one file or several, and upload, download or delete without typing names.
+- **`taasant update`** fetches the newest release and replaces the program in place.
+- **Uploads survive a shaky connection.** A broken connection is tried again a few times before taasant gives up.
+- **The progress bar moves as bytes go out**, not only when a whole part is done.
 
 ## Install
 
@@ -50,6 +67,10 @@ taasant keygen
 ```
 
 If that last command prints a long string of letters and numbers, you're set.
+
+### Updating
+
+From version 0.2 on, run `taasant update`. Version 0.1 does not have that command, so install 0.2 once the same way as above.
 
 On Windows, download `taasant-windows.exe` from the [releases page](https://github.com/vedantlavale/taasant/releases/latest) and run it from a terminal.
 
@@ -113,6 +134,26 @@ One warning before you move on. **The key is the only thing that can read your f
 
 ## Using it
 
+There are two ways: a menu, and plain commands. Both do the same things.
+
+### The menu
+
+This is the simplest way. Go to the folder your files are in and type `taasant` with nothing after it. Move with the arrow keys and press Enter. The menu stays open until you press Q, and Esc goes back to the start.
+
+**Upload** shows the folder you are in. `→` opens a folder and `←` goes up. Space marks a file, and the marks stay as you move between folders. Enter uploads everything you marked, or the file under the cursor if you marked nothing.
+
+![The upload screen with two files marked](assets/menu-browse.png)
+
+While files are moving there is a line for each one. Esc cancels the ones that have not started.
+
+![Three uploads: one done, one in progress, one waiting](assets/menu-work.png)
+
+**Files** shows what you have stored from this computer. A bot cannot ask Telegram what is in the chat, so the list is the one taasant keeps here. **Download** and **Delete** show the same list, and Enter picks the file. A download lands in the folder you started taasant from. Delete asks first.
+
+![The list of stored files](assets/menu-files.png)
+
+### Commands
+
 ```bash
 taasant upload report.pdf          # store a file
 taasant list                       # see everything, newest first
@@ -122,14 +163,6 @@ taasant download report copy.pdf   # get it back under another name
 taasant delete report              # remove it
 taasant update                     # get the newest version of taasant
 ```
-
-Or just type `taasant` on its own. That opens a menu you drive with the arrow keys, and it stays open until you press Q:
-
-- **Upload** shows the folder you are in. `→` opens a folder and `←` goes up. Space marks a file, and the marks stay as you move between folders. Enter uploads everything you marked, or the file under the cursor if you marked nothing.
-- **Files** shows what you have stored from this computer. A bot cannot ask Telegram what is in the chat, so the list is the one taasant keeps here.
-- **Download** and **Delete** show the same list, and Enter picks the file. A download lands in the folder you started taasant from. Delete asks first.
-
-While files are moving there is a line for each one, and Esc cancels the rest. Everywhere else Esc goes back to the menu.
 
 Uploads and downloads show a progress bar that moves as the bytes go out. If the connection drops, taasant tries again a few times before it gives up.
 
