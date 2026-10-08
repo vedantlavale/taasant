@@ -72,7 +72,7 @@
 
 <h2>Where the encryption happens</h2>
 <p>A chat with a bot is an ordinary cloud chat. Telegram encrypts it on the way to its servers, but the servers hold the keys, so Telegram could read what is in it. Only Secret Chats are end-to-end encrypted, and bots cannot use those.</p>
-<p>So taasant does not rely on Telegram for privacy at all. Files are encrypted on your computer, before upload, with AES-256-GCM from Go's standard library. I did not write my own encryption, and nobody should. The key is 32 random bytes that <code>taasant keygen</code> prints once. It stays on your computer.</p>
+<p>So taasant does not rely on Telegram for privacy at all. Files are encrypted on your computer, before upload, with AES-256-GCM from Go's standard library. I did not write my own encryption, and nobody should. The key is 32 random bytes that taasant makes when you set it up. It stays on your computer.</p>
 
 <h2>What Telegram can see</h2>
 <ul>
@@ -94,7 +94,7 @@
 <p>Encryption solves one problem. These are the ones it does not solve.</p>
 <ul>
   <li><b>You lose the key.</b> Then the files are gone. There is no reset link and nobody to ask, me included. Put a copy in a password manager on the day you make it.</li>
-  <li><b>Someone gets the key.</b> It sits in your shell's settings file, so anyone who can read the files of your user account can read it. The key alone is not enough, though. They would also need the encrypted files, which means your bot or your Telegram account.</li>
+  <li><b>Someone gets the key.</b> It sits in a settings file on your computer, so anyone who can read the files of your user account can read it. The key alone is not enough, though. They would also need the encrypted files, which means your bot or your Telegram account.</li>
   <li><b>Someone gets only the bot token.</b> They could act as your bot and make a mess. They could not read your files, because the token does not decrypt anything.</li>
   <li><b>Telegram changes its mind.</b> Under its <a href="https://telegram.org/tos/bot-developers">bot developer terms</a>, Telegram might restrict a bot that is used for storage. To be safe, make the bot from a second Telegram account.</li>
   <li><b>Telegram stops keeping the files.</b> A removed bot, a change of policy. This is free storage and it comes with no promise.</li>

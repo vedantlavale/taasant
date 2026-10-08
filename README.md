@@ -116,31 +116,29 @@ You need Go 1.27 or newer.
 
 ## Set it up
 
-This takes about five minutes, and you only do it once. You need three things: a bot, your chat ID, and a key.
+This takes about five minutes, and you only do it once. Run `taasant` and it asks for what it needs.
 
-**1. Make a bot.** Use a spare Telegram account for this if you can. In Telegram, open a chat with [@BotFather](https://t.me/BotFather), send `/newbot`, and answer its two questions. It hands you a token that looks like `123456:ABC...`.
+**1. Run `taasant`.** The first time, a setup screen opens. The menu comes after it.
 
-**2. Say hello to your bot.** Open the bot you just made and press **Start**. This matters: a bot is not allowed to message you until you have messaged it.
+**2. Make a bot and paste its token.** Use a spare Telegram account for this if you can. In Telegram, open a chat with [@BotFather](https://t.me/BotFather), send `/newbot`, and answer its two questions. It hands you a token that looks like `123456:ABC...`. Paste it into taasant, which checks it with Telegram.
 
-**3. Find your chat ID.** Open [@userinfobot](https://t.me/userinfobot) and press Start. It replies with a number. That number is your chat ID.
+**3. Choose where the files go.** Either a private channel (recommended): create one, add your bot to it as an administrator, and post any message in it. Or the chat with the bot: open your bot and press **Start**. taasant waits until it hears from that chat, so there is no chat ID to look up.
 
-**4. Make a key.**
+**4. Done.** taasant makes your encryption key, saves everything, and opens the menu.
 
-```bash
-taasant keygen
-```
+One warning before you move on. **The key is the only thing that can read your files.** taasant keeps it in its settings file: `~/Library/Application Support/taas/config.json` on a Mac, `~/.config/taas/config.json` on Linux. Put a copy of that file in your password manager. If you lose it, your files are gone for good. Nobody can recover them, including me.
 
-**5. Save all three.** Add these lines to the end of `~/.zshrc` (or `~/.bashrc` if you use bash), with your own values:
+The setup screen is new in version 0.3. On an older version, run `taasant update` first.
+
+### Setting it up by hand
+
+Three environment variables do the same job, and each one that is set wins over the settings file. That is useful in scripts, and a setup made this way before version 0.3 keeps working.
 
 ```bash
 export TG_BOT_TOKEN="123456:ABC..."
 export TG_CHAT_ID="1234567890"
-export TAAS_KEY="the long string from keygen"
+export TAAS_KEY="64 hex characters, taasant keygen prints a new one"
 ```
-
-Open a new terminal window, or run `source ~/.zshrc`, and you're done.
-
-One warning before you move on. **The key is the only thing that can read your files.** Run `keygen` once, put a copy in your password manager, and never change it. If you lose it, your files are gone for good. Nobody can recover them, including me.
 
 ## Using it
 
@@ -215,20 +213,23 @@ If a file with that name already exists where you are, `download` stops with `fi
 
 ## When something goes wrong
 
+**`there is no bot token, run "taasant" in a terminal to set up`**
+taasant has not been set up on this computer. Run `taasant` with nothing after it and answer its questions.
+
 **`the bot can't send messages to the bot`**
 Your `TG_CHAT_ID` is a bot's ID. This usually means you used the number at the start of the token. Use the number @userinfobot gave you.
 
 **`bot can't initiate conversation with a user`**
-You skipped step 2. Open your bot in Telegram and press Start.
+The bot may not write to you until you have written to it. Open your bot in Telegram and press Start.
 
 **`401 Unauthorized`**
 The token is wrong or has been revoked. Get a fresh one from @BotFather.
 
 **`cipher: message authentication failed`**
-`TAAS_KEY` is not the key this file was uploaded with.
+The key in use is not the key this file was uploaded with. Check whether `TAAS_KEY` is set and differs from the key in the settings file.
 
-**`TAAS_KEY must be 64 hex characters`**
-The key is missing or got cut off when you pasted it. Check `echo $TAAS_KEY`.
+**`the key must be 64 hex characters`**
+The key is missing or got cut off when it was pasted. If you set `TAAS_KEY` yourself, check `echo $TAAS_KEY`.
 
 **`file exists`**
 `download` won't overwrite. Give it another output name.

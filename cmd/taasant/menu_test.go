@@ -102,7 +102,7 @@ func press(m model, keys ...string) model {
 func keyMsg(key string) tea.KeyMsg {
 	named := map[string]tea.KeyType{
 		"up": tea.KeyUp, "down": tea.KeyDown, "left": tea.KeyLeft, "right": tea.KeyRight,
-		"enter": tea.KeyEnter, "esc": tea.KeyEsc, " ": tea.KeySpace,
+		"enter": tea.KeyEnter, "esc": tea.KeyEsc, " ": tea.KeySpace, "backspace": tea.KeyBackspace,
 	}
 	if keyType, found := named[key]; found {
 		return tea.KeyMsg{Type: keyType}

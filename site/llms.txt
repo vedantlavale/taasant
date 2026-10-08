@@ -7,9 +7,10 @@
 - Made by Vedant Lavale as a hobby project. Not affiliated with Telegram.
 - Written in Go. MIT license. Source: https://github.com/vedantlavale/taasant
 - Runs on macOS (Apple Silicon and Intel), Linux and Windows.
+- The first run of `taasant` asks for a bot token, finds the chat, makes the key and saves them (from version 0.3).
 - Has a full-screen menu (run `taasant`) and plain commands: `upload`, `list`, `download`, `delete`, `update`, `keygen`.
 - A Telegram bot can upload files up to 50 MB but download only up to 20 MB, so taasant cuts every file into 19 MiB parts and sends three at a time.
-- Each part is sealed with AES-256-GCM and its own random nonce. The key is 32 random bytes made by `taasant keygen` and stays on the user's computer.
+- Each part is sealed with AES-256-GCM and its own random nonce. The key is 32 random bytes made at setup and stays on the user's computer.
 - Telegram can see the number and size of the parts. It cannot see file contents or file names.
 - The list of uploaded files (the index) is kept on the user's computer.
 

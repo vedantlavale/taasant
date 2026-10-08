@@ -12,7 +12,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"time"
 
 	"github.com/vedantlavale/taasant/tgstore"
@@ -30,11 +29,14 @@ const usage = `usage:
 
 A name can be typed partly: "taasant download hol" finds "holiday.jpg".
 
-environment:
+Plain "taasant" asks for the settings the first time and saves them.
+
+environment, each one optional and stronger than the saved settings:
   TG_BOT_TOKEN  bot token from @BotFather
   TG_CHAT_ID    chat the bot stores files in
   TAAS_KEY      encryption key printed by "taasant keygen"
-  TAAS_INDEX    optional, where the list of uploads is kept`
+  TAAS_CONFIG   where the settings are kept
+  TAAS_INDEX    where the list of uploads is kept`
 
 var errUsage = errors.New(usage)
 
@@ -155,21 +157,14 @@ func run(args []string) error {
 	}
 }
 
-// connect reads the bot's settings and the encryption key from the environment.
+// connect makes the store and the key out of the settings.
 func connect() (*tgstore.Store, []byte, error) {
-	chatID, err := strconv.ParseInt(os.Getenv("TG_CHAT_ID"), 10, 64)
+	c, err := settings()
 	if err != nil {
-		return nil, nil, errors.New("TG_CHAT_ID must be a number")
+		return nil, nil, err
 	}
-	token := os.Getenv("TG_BOT_TOKEN")
-	if token == "" {
-		return nil, nil, errors.New("TG_BOT_TOKEN is not set")
-	}
-	key, err := hex.DecodeString(os.Getenv("TAAS_KEY"))
-	if err != nil || len(key) != 32 {
-		return nil, nil, errors.New(`TAAS_KEY must be 64 hex characters, create one with "taasant keygen"`)
-	}
-	return tgstore.New(token, chatID), key, nil
+	key, _ := hex.DecodeString(c.Key)
+	return tgstore.New(c.Token, c.ChatID), key, nil
 }
 
 func list(entries []entry, args []string) error {

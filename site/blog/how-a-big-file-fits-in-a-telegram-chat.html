@@ -75,7 +75,7 @@
 <p>A 2 GB file is 2,048 MiB, so it becomes 108 parts: 107 full ones and a short one at the end.</p>
 
 <h2>Lock each part before it leaves</h2>
-<p>Each part is encrypted on your computer with AES-256-GCM, using the key you made with <code>taasant keygen</code>. Two details matter here.</p>
+<p>Each part is encrypted on your computer with AES-256-GCM, using the key taasant made when you set it up. Two details matter here.</p>
 <ul>
   <li><b>Every part gets its own random nonce.</b> A nonce is 12 random bytes that make the encryption come out differently each time. It is stored at the front of the part. Using the same nonce twice with one key is the classic way to break GCM, so taasant makes a fresh one for every part.</li>
   <li><b>Every part gets a tag.</b> GCM adds 16 bytes at the end that only someone with the key could have made. If a single byte changes on the way, or the key is wrong, decryption fails with an error instead of handing you garbage.</li>
