@@ -103,6 +103,9 @@ type (
 
 // menu runs the full screen program you get from plain "taasant".
 func menu() error {
+	if done, err := setUp(); !done {
+		return err
+	}
 	m, err := newModel()
 	if err != nil {
 		return err

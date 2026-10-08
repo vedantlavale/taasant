@@ -147,7 +147,7 @@ func (s *Store) deleteMessage(ctx context.Context, messageID int) error {
 		"message_id": {strconv.Itoa(messageID)},
 	}.Encode()
 	var deleted bool
-	return s.call(ctx, "deleteMessage", "application/x-www-form-urlencoded", []byte(query), nil, &deleted)
+	return s.call(ctx, "deleteMessage", formType, []byte(query), nil, &deleted)
 }
 
 func (s *Store) fetchFile(ctx context.Context, id string, received func(done, total int)) ([]byte, error) {
@@ -155,7 +155,7 @@ func (s *Store) fetchFile(ctx context.Context, id string, received func(done, to
 		FilePath string `json:"file_path"`
 	}
 	query := url.Values{"file_id": {id}}.Encode()
-	err := s.call(ctx, "getFile", "application/x-www-form-urlencoded", []byte(query), nil, &file)
+	err := s.call(ctx, "getFile", formType, []byte(query), nil, &file)
 	if err != nil {
 		return nil, err
 	}
@@ -179,4 +179,61 @@ func (s *Store) fetchFile(ctx context.Context, id string, received func(done, to
 		body = &countingReader{reader: body, total: int(res.ContentLength), report: received}
 	}
 	return io.ReadAll(body)
+}
+
+const formType = "application/x-www-form-urlencoded"
+
+// Chat is a place a bot can post in. Title is set for channels and groups,
+// FirstName for a person.
+type Chat struct {
+	ID        int64  `json:"id"`
+	Type      string `json:"type"`
+	Title     string `json:"title"`
+	FirstName string `json:"first_name"`
+}
+
+// Me asks Telegram who the token belongs to and returns the bot's username.
+func (s *Store) Me(ctx context.Context) (string, error) {
+	var bot struct {
+		Username string `json:"username"`
+	}
+	err := s.call(ctx, "getMe", formType, nil, nil, &bot)
+	return bot.Username, err
+}
+
+// FindChat waits until the bot hears from a chat and returns it: a person
+// writing to the bot if private is set, otherwise a channel or group the bot
+// was added to or that got a new post. Of several it returns the newest.
+//
+// Telegram numbers what a bot hears. FindChat skips everything up to after
+// and returns the number it got to, so the next search only hears newer things.
+func (s *Store) FindChat(ctx context.Context, private bool, after int) (Chat, int, error) {
+	type heard struct {
+		Chat Chat `json:"chat"`
+	}
+	for {
+		var updates []struct {
+			ID      int    `json:"update_id"`
+			Message *heard `json:"message"`
+			Post    *heard `json:"channel_post"`
+			Member  *heard `json:"my_chat_member"`
+		}
+		// timeout makes Telegram hold the request open until there is news.
+		query := url.Values{"timeout": {"20"}, "offset": {strconv.Itoa(after + 1)}}.Encode()
+		if err := s.call(ctx, "getUpdates", formType, []byte(query), nil, &updates); err != nil {
+			return Chat{}, after, err
+		}
+		var found *Chat
+		for _, u := range updates {
+			after = u.ID
+			for _, h := range []*heard{u.Message, u.Post, u.Member} {
+				if h != nil && (h.Chat.Type == "private") == private {
+					found = &h.Chat
+				}
+			}
+		}
+		if found != nil {
+			return *found, after, nil
+		}
+	}
 }

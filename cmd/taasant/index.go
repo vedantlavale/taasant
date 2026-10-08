@@ -62,19 +62,12 @@ func loadIndex(path string) ([]entry, error) {
 	return entries, err
 }
 
-// saveIndex writes to a temporary file first, so a crash cannot leave a half-written index.
 func saveIndex(path string, entries []entry) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return err
-	}
 	data, err := json.MarshalIndent(entries, "", "  ")
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(path+".tmp", data, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(path+".tmp", path)
+	return writeFile(path, data)
 }
 
 // fuzzyMatch reports whether the letters of query appear in name in the same order.

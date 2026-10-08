@@ -520,7 +520,7 @@ go build -o taasant ./cmd/taasant</pre></div>
       <!-- ================= SETUP ================= -->
       <section class="page" id="p-setup" data-title="Set it up" data-group="Get started">
         <h1>Set it up</h1>
-        <p class="lede">About five minutes, once. You need three things: a bot token, your chat ID, and an encryption key.</p>
+        <p class="lede">About five minutes, once. The first time you run taasant, it asks for what it needs and saves it.</p>
 
         <div class="callout warn">
           <svg class="i"><use href="#i-alert"/></svg>
@@ -530,47 +530,55 @@ go build -o taasant ./cmd/taasant</pre></div>
 
         <ol class="steps">
           <li>
-            <h3>Make a bot</h3>
-            <p>In Telegram, open a chat with <a href="https://t.me/BotFather">@BotFather</a>, send <code>/newbot</code>, and answer its two questions. It gives you a token that looks like <code>123456:ABC...</code>.</p>
-          </li>
-          <li>
-            <h3>Say hello to your bot</h3>
-            <p>Open the bot you just made and press <strong>Start</strong>. A bot is not allowed to message you until you have messaged it.</p>
-          </li>
-          <li>
-            <h3>Find your chat ID</h3>
-            <p>Open <a href="https://t.me/userinfobot">@userinfobot</a> and press <strong>Start</strong>. It replies with a number. That number is your chat ID.</p>
-          </li>
-          <li>
-            <h3>Make a key</h3>
+            <h3>Run taasant</h3>
             <div class="code"><div class="bar"><span>bash</span></div>
-<pre data-lang="bash">taasant keygen</pre></div>
+<pre data-lang="bash">taasant</pre></div>
+            <p>The first time, a setup screen opens. The menu comes after it.</p>
           </li>
           <li>
-            <h3>Save all three</h3>
-            <p>Add these lines to the end of <code>~/.zshrc</code> (or <code>~/.bashrc</code> if you use bash), with your own values:</p>
-            <div class="code"><div class="bar"><span>~/.zshrc</span></div>
-<pre data-lang="bash">export TG_BOT_TOKEN="123456:ABC..."
-export TG_CHAT_ID="1234567890"
-export TAAS_KEY="the long string from keygen"</pre></div>
-            <p>Open a new terminal window, or run <code>source ~/.zshrc</code>. You're done.</p>
+            <h3>Make a bot and paste its token</h3>
+            <p>In Telegram, open a chat with <a href="https://t.me/BotFather">@BotFather</a>, send <code>/newbot</code>, and answer its two questions. It gives you a token that looks like <code>123456:ABC...</code>. Paste it into taasant, which checks it with Telegram.</p>
+          </li>
+          <li>
+            <h3>Choose where the files go</h3>
+            <p><strong>A private channel</strong> (recommended): create a private channel in Telegram, add your bot to it as an administrator, and post any message in it.</p>
+            <p><strong>The chat with the bot</strong>: open your bot in Telegram and press <strong>Start</strong>.</p>
+            <p>taasant waits until it hears from that chat and asks if it is the right one. There is no chat ID to look up.</p>
+          </li>
+          <li>
+            <h3>Done</h3>
+            <p>taasant makes your encryption key, saves everything, and opens the menu.</p>
           </li>
         </ol>
 
         <div class="callout danger">
           <svg class="i"><use href="#i-key"/></svg>
           <div><b>The key is the only thing that can read your files</b>
-          <p>Run <code>keygen</code> once, put a copy in your password manager, and never change it. If you lose it, your files are gone for good. Nobody can recover them.</p></div>
+          <p>taasant makes the key for you and keeps it in its settings file. Put a copy of that file in your password manager. If you lose it, your files are gone for good. Nobody can recover them.</p></div>
         </div>
 
-        <h2 id="env">Environment variables</h2>
+        <p>The setup screen is new in version 0.3. On an older version, run <code>taasant update</code> first.</p>
+
+        <h2 id="settings">Where the settings are kept</h2>
+        <p>The bot token, the chat and the key are saved in one file that only your user account can read.</p>
         <div class="table-wrap"><table>
-          <tr><th>Variable</th><th>Required</th><th>What it is</th></tr>
-          <tr><td><code>TG_BOT_TOKEN</code></td><td>Yes</td><td>Token from @BotFather.</td></tr>
-          <tr><td><code>TG_CHAT_ID</code></td><td>Yes</td><td>The number @userinfobot gave you.</td></tr>
-          <tr><td><code>TAAS_KEY</code></td><td>Yes</td><td>64 hex characters from <code>taasant keygen</code>.</td></tr>
-          <tr><td><code>TAAS_INDEX</code></td><td>No</td><td>Where to keep the index file. See <a href="#storage">What ends up where</a>.</td></tr>
-          <tr><td><code>NO_COLOR</code></td><td>No</td><td>Set to <code>1</code> for plain text output in a terminal.</td></tr>
+          <tr><th>System</th><th>Settings file</th></tr>
+          <tr><td>macOS</td><td><code>~/Library/Application Support/taas/config.json</code></td></tr>
+          <tr><td>Linux</td><td><code>~/.config/taas/config.json</code></td></tr>
+          <tr><td>Windows</td><td><code>%AppData%\taas\config.json</code></td></tr>
+          <tr><td>Anywhere</td><td>Set <code>TAAS_CONFIG</code> to use a path of your choice.</td></tr>
+        </table></div>
+
+        <h2 id="env">Environment variables</h2>
+        <p>Every one is optional. One that is set wins over the settings file, which is useful in scripts. A setup made before version 0.3 with these three variables keeps working as it is.</p>
+        <div class="table-wrap"><table>
+          <tr><th>Variable</th><th>What it is</th></tr>
+          <tr><td><code>TG_BOT_TOKEN</code></td><td>Token from @BotFather.</td></tr>
+          <tr><td><code>TG_CHAT_ID</code></td><td>The number of the chat the bot stores files in.</td></tr>
+          <tr><td><code>TAAS_KEY</code></td><td>The encryption key, 64 hex characters. <code>taasant keygen</code> prints a new one.</td></tr>
+          <tr><td><code>TAAS_CONFIG</code></td><td>Where to keep the settings file.</td></tr>
+          <tr><td><code>TAAS_INDEX</code></td><td>Where to keep the index file. See <a href="#storage">What ends up where</a>.</td></tr>
+          <tr><td><code>NO_COLOR</code></td><td>Set to <code>1</code> for plain text output in a terminal.</td></tr>
         </table></div>
       </section>
 
@@ -724,7 +732,7 @@ taasant update                     # get the newest version of taasant</pre></di
         <p>Your files, as messages with an attachment called <code>part.bin</code>. A small file is two messages: the file and a tiny list of its parts. A big one is several. They are encrypted, so opening one from the Telegram app gets you nothing useful.</p>
 
         <h2 id="on-computer">On your computer</h2>
-        <p>A list of what you have uploaded, called the <strong>index</strong>.</p>
+        <p>Your settings, in <code>config.json</code> (see <a href="#setup">Set it up</a>), and a list of what you have uploaded, called the <strong>index</strong>. Both are in the same folder.</p>
         <div class="table-wrap"><table>
           <tr><th>System</th><th>Index location</th></tr>
           <tr><td>macOS</td><td><code>~/Library/Application Support/taas/index.json</code></td></tr>
@@ -761,16 +769,18 @@ taasant update                     # get the newest version of taasant</pre></di
         <h1>Troubleshooting</h1>
         <p class="lede">Find your error message below.</p>
 
+        <details><summary>there is no bot token, run "taasant" in a terminal to set up</summary>
+          <div><p>taasant has not been set up on this computer. Run <code>taasant</code> with nothing after it and answer its questions. See <a href="#setup">Set it up</a>.</p></div></details>
         <details><summary>the bot can't send messages to the bot</summary>
           <div><p>Your <code>TG_CHAT_ID</code> is a bot's ID. This usually means you used the number at the start of the token. Use the number @userinfobot gave you.</p></div></details>
         <details><summary>bot can't initiate conversation with a user</summary>
-          <div><p>You skipped step 2 of setup. Open your bot in Telegram and press <strong>Start</strong>.</p></div></details>
+          <div><p>The bot may not write to you until you have written to it. Open your bot in Telegram and press <strong>Start</strong>.</p></div></details>
         <details><summary>401 Unauthorized</summary>
           <div><p>The token is wrong or has been revoked. Get a fresh one from @BotFather.</p></div></details>
         <details><summary>cipher: message authentication failed</summary>
-          <div><p><code>TAAS_KEY</code> is not the key this file was uploaded with.</p></div></details>
-        <details><summary>TAAS_KEY must be 64 hex characters</summary>
-          <div><p>The key is missing or got cut off when you pasted it. Check it with <code>echo $TAAS_KEY</code>.</p></div></details>
+          <div><p>The key in use is not the key this file was uploaded with. Check whether <code>TAAS_KEY</code> is set and differs from the key in the settings file.</p></div></details>
+        <details><summary>the key must be 64 hex characters</summary>
+          <div><p>The key is missing or got cut off when it was pasted. If you set <code>TAAS_KEY</code> yourself, check it with <code>echo $TAAS_KEY</code>.</p></div></details>
         <details><summary>file exists</summary>
           <div><p><code>download</code> won't overwrite. Give it another output name: <code>taasant download report copy.pdf</code>.</p></div></details>
       </section>
