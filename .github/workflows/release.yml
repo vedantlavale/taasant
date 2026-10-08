@@ -1,15 +1,24 @@
-# Pushing a tag like v0.2.0 builds taasant for every system and publishes
-# a release with the files attached:
+# Builds taasant for every system and publishes a release with the files
+# attached. There are two ways to start one:
 #
-#   git tag v0.2.0 && git push origin v0.2.0
+# 1. Put a label on a pull request before merging it: release:patch
+#    (0.3.0 becomes 0.3.1), release:minor (0.4.0) or release:major (1.0.0).
+#    Merging it makes the next version. Without a label nothing is released,
+#    and this only runs the tests.
+#
+# 2. Push a tag by hand:
+#
+#      git tag v0.3.0 && git push origin v0.3.0
 name: Release
 
 on:
   push:
+    branches: [master]
     tags: ["v*"]
 
 permissions:
   contents: write
+  pull-requests: read # to see the labels of the merged pull request
 
 jobs:
   release:
@@ -25,10 +34,31 @@ jobs:
 
       - run: go test ./...
 
+      # The version is the pushed tag, or the one the label asks for. The tag
+      # is made here already, because Go writes it into the program, and it
+      # reaches GitHub when the release is published.
+      - name: Decide the version
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            tag="$GITHUB_REF_NAME"
+          else
+            labels=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" --jq '.[].labels[].name')
+            last=$(git tag --list 'v*' --sort=-v:refname | head -n 1)
+            tag=$(sh .github/next-version.sh "$last" "$labels")
+            if [ -z "$tag" ]; then echo "No release label on this change, so nothing is released."; exit 0; fi
+            git tag "$tag"
+          fi
+          echo "This is $tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
       # The files go outside the repository: Go marks a build "+dirty" when
       # the folder holds files git does not know, and "taasant update"
       # compares the version exactly. It also finds these files by name.
       - name: Build
+        if: steps.version.outputs.tag != ''
         env:
           CGO_ENABLED: "0"
         run: |
@@ -39,28 +69,35 @@ jobs:
           GOOS=windows GOARCH=amd64 go build -trimpath -o "$out/taasant-windows.exe"  ./cmd/taasant
 
       - name: Check the version inside the program
+        if: steps.version.outputs.tag != ''
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
           got=$("$RUNNER_TEMP/dist/taasant-linux-amd64" version)
           echo "$got"
-          test "$got" = "taasant $GITHUB_REF_NAME"
+          test "$got" = "taasant $TAG"
 
       - name: Publish
+        if: steps.version.outputs.tag != ''
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" "$RUNNER_TEMP"/dist/* --generate-notes
+          TAG: ${{ steps.version.outputs.tag }}
+        run: gh release create "$TAG" "$RUNNER_TEMP"/dist/* --target "$GITHUB_SHA" --generate-notes
 
       # Homebrew and Scoop read what to download from a second repository,
       # vedantlavale/homebrew-tap. This step does nothing until the secret
       # TAP_TOKEN exists: a token that may write to that repository.
       - name: Update Homebrew and Scoop
+        if: steps.version.outputs.tag != ''
         env:
           TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
           if [ -z "$TAP_TOKEN" ]; then echo "There is no TAP_TOKEN secret, so this is skipped."; exit 0; fi
           tap="$RUNNER_TEMP/tap"
           git clone "https://x-access-token:$TAP_TOKEN@github.com/vedantlavale/homebrew-tap.git" "$tap"
-          sh .github/packages.sh "$GITHUB_REF_NAME" "$RUNNER_TEMP/dist" "$tap"
+          sh .github/packages.sh "$TAG" "$RUNNER_TEMP/dist" "$tap"
           cd "$tap"
           git add -A
-          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "taasant $GITHUB_REF_NAME"
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "taasant $TAG"
           git push origin HEAD
