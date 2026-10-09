@@ -143,3 +143,27 @@ func TestStartFrom(t *testing.T) {
 		t.Errorf("the key in TAAS_KEY was not kept: %+v, %v", conf, err)
 	}
 }
+
+// check names the first setting that is missing or wrong.
+func TestCheck(t *testing.T) {
+	key := strings.Repeat("ab", 32)
+	tests := []struct {
+		conf config
+		want string
+	}{
+		{config{}, "no bot token"},
+		{config{Token: "TOKEN"}, "no chat"},
+		{config{Token: "TOKEN", ChatID: -100}, "64 hex characters"},
+		{config{Token: "TOKEN", ChatID: -100, Key: "abc"}, "64 hex characters"},
+		{config{Token: "TOKEN", ChatID: -100, Key: key}, ""},
+	}
+	for _, test := range tests {
+		err := test.conf.check()
+		if test.want == "" && err != nil {
+			t.Errorf("check(%+v) = %v, want no error", test.conf, err)
+		}
+		if test.want != "" && (err == nil || !strings.Contains(err.Error(), test.want)) {
+			t.Errorf("check(%+v) = %v, want an error with %q", test.conf, err, test.want)
+		}
+	}
+}
