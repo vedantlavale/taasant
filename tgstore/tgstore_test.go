@@ -18,6 +18,7 @@ type fakeTelegram struct {
 	files     map[string][]byte
 	sent      int
 	failSends int
+	downloads int
 }
 
 func (f *fakeTelegram) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -61,6 +62,7 @@ func (f *fakeTelegram) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	default:
 		var id string
 		fmt.Sscanf(r.URL.Path, "/file/botTOKEN/documents/%s", &id)
+		f.downloads++
 		w.Write(f.files[id])
 	}
 }

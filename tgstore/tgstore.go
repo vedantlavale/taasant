@@ -33,6 +33,12 @@ type Store struct {
 	Progress func(bytes int)
 
 	partSize int
+
+	// What Readers have fetched, see reader.go.
+	mu     sync.Mutex
+	shapes map[string]shape
+	parts  map[string]*fetched
+	order  []string
 }
 
 type stored struct {

@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -31,7 +32,10 @@ type drive struct {
 	key       []byte
 	indexFile string
 	since     time.Time
-	note      func(text string)
+	// note is told what the drive did. alert is told that a file was not
+	// saved, which Finder keeps to itself.
+	note  func(text string)
+	alert func(text string)
 
 	// Finder asks for many things at once, so mu guards everything below.
 	mu sync.Mutex
@@ -57,7 +61,7 @@ type kept struct {
 func newDrive(store *tgstore.Store, key []byte, indexFile string) *drive {
 	return &drive{
 		store: store, key: key, indexFile: indexFile, since: time.Now(),
-		note:  func(string) {},
+		note: func(string) {}, alert: func(string) {},
 		local: map[string]kept{}, folders: map[string]bool{},
 	}
 }
@@ -71,8 +75,9 @@ func (d *drive) handler(host string) http.Handler {
 		FileSystem: d,
 		LockSystem: webdav.NewMemLS(),
 		Logger: func(r *http.Request, err error) {
-			// Finder asks for many files that are not there.
-			if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			// Finder asks for many files that are not there, and a file
+			// that could not be saved has its own alert.
+			if err != nil && !errors.Is(err, fs.ErrNotExist) && r.Method != http.MethodPut {
 				d.note(fmt.Sprintf("%s %s: %v", r.Method, clean(strings.TrimPrefix(r.URL.Path, "/"+driveName)), err))
 			}
 		},
@@ -82,8 +87,61 @@ func (d *drive) handler(host string) http.Handler {
 			http.Error(w, "the taasant drive only answers Finder on this computer", http.StatusForbidden)
 			return
 		}
+		if r.Method == http.MethodGet {
+			if err := d.reach(r); err != nil {
+				http.Error(w, err.Error(), http.StatusBadGateway)
+				return
+			}
+		}
+		// The webdav package makes an empty file when a name that is not
+		// there gets locked. Finder locks a file once more after saving it,
+		// and when the save has failed, that empty file would pass for it.
+		if r.Method == "LOCK" {
+			if _, err := d.Stat(r.Context(), strings.TrimPrefix(r.URL.Path, "/"+driveName)); err != nil {
+				http.NotFound(w, r)
+				return
+			}
+		}
 		dav.ServeHTTP(w, r)
 	})
+}
+
+// reach fetches the first byte a download asks for, before the download is
+// answered. Finder only takes a download for failed if the answer says so.
+// Once bytes are on their way, it takes whatever arrives for the whole file.
+func (d *drive) reach(r *http.Request) error {
+	name := clean(strings.TrimPrefix(r.URL.Path, "/"+driveName))
+	d.mu.Lock()
+	info, err := d.find(name)
+	d.mu.Unlock()
+	if err != nil || info.id == "" {
+		return nil
+	}
+
+	file := d.store.Open(r.Context(), d.key, info.id, info.size)
+	file.Seek(firstByte(r.Header.Get("Range"), info.size), io.SeekStart)
+	if _, err := file.Read(make([]byte, 1)); err != nil && err != io.EOF {
+		d.note(fmt.Sprintf("%s could not be read: %v", name, err))
+		return err
+	}
+	return nil
+}
+
+// firstByte returns where a download starts. Finder asks for a whole file
+// with no Range header, and for a piece of one with "bytes=100-199".
+func firstByte(header string, size int64) int64 {
+	pieces, found := strings.CutPrefix(header, "bytes=")
+	if !found {
+		return 0
+	}
+	from, to, _ := strings.Cut(pieces, "-")
+	if from == "" {
+		// "bytes=-50" is the last 50 bytes.
+		last, _ := strconv.ParseInt(to, 10, 64)
+		return max(size-last, 0)
+	}
+	start, _ := strconv.ParseInt(from, 10, 64)
+	return start
 }
 
 // clean turns the path of a request into a name: no slash at either end.
@@ -269,7 +327,7 @@ func (d *drive) OpenFile(ctx context.Context, name string, flag int, perm os.Fil
 	if info.id != "" {
 		content = d.store.Open(ctx, d.key, info.id, info.size)
 	}
-	return &reading{ReadSeeker: content, d: d, info: info}, nil
+	return &reading{ReadSeeker: content, d: d, ctx: ctx, info: info}, nil
 }
 
 func (d *drive) RemoveAll(ctx context.Context, name string) error {
@@ -437,13 +495,44 @@ func (d *drive) put(added entry) error {
 	return nil
 }
 
+// failed is called when a file could not be saved. Finder does not tell: it
+// shows the copy as done whatever the drive answers. So the empty file Finder
+// made first is taken away again, and the alert has to say what happened.
+// When Finder itself broke the copy off, a note is enough.
+func (d *drive) failed(name string, err error, stopped bool) {
+	d.mu.Lock()
+	delete(d.local, name)
+	delete(d.local, path.Join(parent(name), "._"+path.Base(name)))
+	d.mu.Unlock()
+	if stopped {
+		d.note(name + " was not saved, the copy was stopped")
+		return
+	}
+	d.alert(fmt.Sprintf("%s was not saved: %v", name, err))
+}
+
 // reading is a file or a folder that was opened to look at it. Opening asks
 // Telegram for nothing, and a file's first Read does: listing a folder opens
 // every file in it only to see its size and time.
 type reading struct {
 	io.ReadSeeker
 	d    *drive
+	ctx  context.Context
 	info fileInfo
+}
+
+// Read does not return when a download fails halfway. The download would end
+// there, and Finder takes a download that ends early for the whole file. One
+// that stops moving it gives up on after a minute or so, with an error.
+func (r *reading) Read(p []byte) (int, error) {
+	n, err := r.ReadSeeker.Read(p)
+	if err != nil && err != io.EOF {
+		if r.ctx.Err() == nil {
+			r.d.note(fmt.Sprintf("%s could not be read to the end: %v", r.info.name, err))
+		}
+		<-r.ctx.Done()
+	}
+	return n, err
 }
 
 func (r *reading) Close() error               { return nil }
@@ -508,10 +597,14 @@ func (w *writing) Close() error {
 	// If Finder broke off, the upload fails here, and half a file is never
 	// taken for a whole one.
 	w.pipe.CloseWithError(w.ctx.Err())
-	if err := <-w.done; err != nil {
-		return err
+	err := <-w.done
+	if err == nil {
+		err = w.d.put(entry{Name: w.name, ID: w.id, Size: w.size, Uploaded: w.when})
 	}
-	return w.d.put(entry{Name: w.name, ID: w.id, Size: w.size, Uploaded: w.when})
+	if err != nil {
+		w.d.failed(w.name, err, w.ctx.Err() != nil)
+	}
+	return err
 }
 
 func (w *writing) Read([]byte) (int, error)           { return 0, fs.ErrPermission }

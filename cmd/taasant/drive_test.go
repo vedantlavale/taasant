@@ -9,12 +9,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/vedantlavale/taasant/tgstore"
 )
 
-const testHost = "taasant.localhost:8737"
+const testHost = "taasant.localhost:8738"
 
 // testDrive is a drive on a fake Telegram, behind the server Finder talks to.
 type testDrive struct {
@@ -22,19 +23,30 @@ type testDrive struct {
 	d      *drive
 	fake   *fakeTelegram
 	server *httptest.Server
+	// refuse makes the fake Telegram turn uploads down.
+	refuse atomic.Bool
+	alerts []string
 }
 
 func newTestDrive(t *testing.T) *testDrive {
-	fake := &fakeTelegram{files: map[string][]byte{}}
-	telegram := httptest.NewServer(fake)
+	td := &testDrive{t: t, fake: &fakeTelegram{files: map[string][]byte{}}}
+	telegram := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if td.refuse.Load() && strings.HasSuffix(r.URL.Path, "/sendDocument") {
+			w.WriteHeader(http.StatusBadRequest)
+			io.WriteString(w, `{"ok":false,"description":"no"}`)
+			return
+		}
+		td.fake.ServeHTTP(w, r)
+	}))
 	t.Cleanup(telegram.Close)
 	store := tgstore.New("TOKEN", 1)
 	store.Endpoint = telegram.URL
 
-	d := newDrive(store, make([]byte, 32), filepath.Join(t.TempDir(), "index.json"))
-	server := httptest.NewServer(d.handler(testHost))
-	t.Cleanup(server.Close)
-	return &testDrive{t, d, fake, server}
+	td.d = newDrive(store, make([]byte, 32), filepath.Join(t.TempDir(), "index.json"))
+	td.d.alert = func(text string) { td.alerts = append(td.alerts, text) }
+	td.server = httptest.NewServer(td.d.handler(testHost))
+	t.Cleanup(td.server.Close)
+	return td
 }
 
 // do sends one request the way Finder would and returns the status and the body.
@@ -228,5 +240,84 @@ func TestDriveOtherHost(t *testing.T) {
 	res.Body.Close()
 	if res.StatusCode != http.StatusForbidden {
 		t.Fatalf("a request under another name answered %d", res.StatusCode)
+	}
+}
+
+// Finder takes a download that ends early for the whole file. So a file that
+// cannot be fetched has to be refused before any of it is sent.
+func TestDriveUnreadableFile(t *testing.T) {
+	td := newTestDrive(t)
+	td.do("PUT", "notes.txt", "hello")
+
+	td.fake.mu.Lock()
+	clear(td.fake.files)
+	td.fake.mu.Unlock()
+	if status, got := td.do("GET", "notes.txt", ""); status != http.StatusBadGateway {
+		t.Fatalf("GET of a file that is gone from the chat answered %d %q", status, got)
+	}
+	if status, _ := td.do("GET", "notes.txt", "", "Range", "bytes=2-3"); status != http.StatusBadGateway {
+		t.Fatalf("GET of a piece of it answered %d", status)
+	}
+}
+
+// Finder shows a copy as done even when the drive says it failed. The empty
+// file Finder made first must not stay behind and pass for the real one.
+func TestDriveFailedUpload(t *testing.T) {
+	td := newTestDrive(t)
+	td.do("PUT", "notes.txt", "")
+	td.do("PUT", "._notes.txt", "attributes")
+
+	td.refuse.Store(true)
+	if status, _ := td.do("PUT", "notes.txt", "hello"); status < 400 {
+		t.Fatalf("the failed PUT answered %d", status)
+	}
+	if len(td.alerts) != 1 || !strings.Contains(td.alerts[0], "notes.txt was not saved") {
+		t.Fatalf("the alerts are %q", td.alerts)
+	}
+	if status, _ := td.do("GET", "notes.txt", ""); status != http.StatusNotFound {
+		t.Fatalf("the file that was not saved answered %d", status)
+	}
+	if status, _ := td.do("GET", "._notes.txt", ""); status != http.StatusNotFound {
+		t.Fatalf("its helper file answered %d", status)
+	}
+	if td.names() != "" {
+		t.Fatalf("the index has %q", td.names())
+	}
+
+	// Finder locks the file once more after the save. That must not bring
+	// an empty file back.
+	lock := `<D:lockinfo xmlns:D="DAV:"><D:lockscope><D:exclusive/></D:lockscope><D:locktype><D:write/></D:locktype></D:lockinfo>`
+	if status, _ := td.do("LOCK", "notes.txt", lock); status != http.StatusNotFound {
+		t.Fatalf("LOCK of the file that was not saved answered %d", status)
+	}
+	if status, _ := td.do("GET", "notes.txt", ""); status != http.StatusNotFound {
+		t.Fatalf("after the LOCK the file answered %d", status)
+	}
+
+	// A file that is there can be locked.
+	td.refuse.Store(false)
+	td.do("PUT", "notes.txt", "hello")
+	if status, _ := td.do("LOCK", "notes.txt", lock); status != http.StatusOK {
+		t.Fatalf("LOCK of a saved file answered %d", status)
+	}
+}
+
+func TestFirstByte(t *testing.T) {
+	tests := []struct {
+		header string
+		want   int64
+	}{
+		{"", 0},
+		{"bytes=0-99", 0},
+		{"bytes=100-199", 100},
+		{"bytes=100-", 100},
+		{"bytes=-30", 970},
+		{"bytes=-5000", 0},
+		{"nonsense", 0},
+	}
+	for _, test := range tests {
+		if got := firstByte(test.header, 1000); got != test.want {
+			t.Errorf("firstByte(%q) = %d, want %d", test.header, got, test.want)
+		}
 	}
 }

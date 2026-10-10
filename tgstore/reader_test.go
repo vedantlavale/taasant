@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"sync"
 	"testing"
 )
 
@@ -79,5 +80,51 @@ func TestReaderMissingObject(t *testing.T) {
 	}
 	if _, err := r.Read(make([]byte, 1)); err == nil {
 		t.Fatal("reading an object that is not there worked")
+	}
+}
+
+// Finder reads one file through several Readers at once. Together they must
+// not download a part more than once.
+func TestReadersShare(t *testing.T) {
+	store, fake := newTestStore(t, 10)
+	ctx := context.Background()
+	key := randomBytes(32)
+	data := randomBytes(35)
+
+	id, err := store.Upload(ctx, key, bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Go(func() {
+			got, err := io.ReadAll(store.Open(ctx, key, id, int64(len(data))))
+			if err != nil || !bytes.Equal(got, data) {
+				t.Errorf("a Reader got other bytes, or %v", err)
+			}
+		})
+	}
+	wg.Wait()
+
+	// Each Reader may ask for the list of parts, but the 4 parts come once.
+	fake.mu.Lock()
+	downloads := fake.downloads
+	fake.mu.Unlock()
+	if downloads > 8+4 {
+		t.Fatalf("8 Readers made %d downloads", downloads)
+	}
+
+	// Everything is still in memory, so a Reader later needs nothing.
+	r := store.Open(ctx, key, id, int64(len(data)))
+	r.Seek(12, io.SeekStart)
+	got, err := io.ReadAll(r)
+	if err != nil || !bytes.Equal(got, data[12:]) {
+		t.Fatalf("a later Reader got other bytes, or %v", err)
+	}
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if fake.downloads != downloads {
+		t.Fatalf("a later Reader made %d more downloads", fake.downloads-downloads)
 	}
 }

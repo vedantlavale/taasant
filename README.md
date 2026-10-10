@@ -34,7 +34,7 @@ $ taasant download hol
 
 Everything is encrypted on your computer before it is sent, so Telegram only ever sees scrambled bytes. Big files are split up for you, and you get them back by name, not by some long ID.
 
-The code is small. The part that stores files uses nothing outside the standard library, and the menu is built with [Bubble Tea](https://github.com/charmbracelet/bubbletea). It works, but treat it as a hobby project and not as your only backup.
+The code is small. The part that stores files uses nothing outside the standard library, the menu is built with [Bubble Tea](https://github.com/charmbracelet/bubbletea), and the drive in Finder with Go's [webdav](https://pkg.go.dev/golang.org/x/net/webdav) package. It works, but treat it as a hobby project and not as your only backup.
 
 Under its [bot terms](https://telegram.org/tos/bot-developers), Telegram might restrict a bot that is used for storage. To be safe, make the bot from a second Telegram account, and be reasonable about what you store.
 
@@ -169,10 +169,35 @@ taasant list rep                   # search
 taasant download report            # get it back
 taasant download report copy.pdf   # get it back under another name
 taasant delete report              # remove it
+taasant mount                      # show the files as a drive in Finder (Mac)
 taasant update                     # get the newest version of taasant
 ```
 
 Uploads and downloads show a progress bar that moves as the bytes go out. If the connection drops, taasant tries again a few times before it gives up.
+
+### A drive in Finder
+
+On a Mac, `taasant mount` puts your files in Finder's sidebar, under **Locations**:
+
+```console
+$ taasant mount
+✓ the drive is in Finder, under Locations. Ctrl-C ejects it
+  saved holiday.jpg  45.0 MiB
+```
+
+The drive is called `taasant.localhost`. Drag files in to store them, drag them out or open them to get them back, and make folders, rename and delete as on any disk. It stays for as long as the command runs. Press Ctrl-C in the terminal, or eject the drive in Finder, to take it away.
+
+No app is needed and nothing else has to be installed. taasant serves the files to Finder from your own computer, at an address other computers cannot reach.
+
+A few things work differently from a normal disk:
+
+- **A copy takes as long as the upload.** Finder is done with a file when the file is in Telegram, not before.
+- **Finder does not tell you when a copy to the drive failed.** taasant does, with a notification and a line in the terminal. The file is then not on the drive, so copy it again.
+- **Opening a file downloads it.** A big file starts to arrive after its first 19 MiB.
+- **Icon previews are off.** Finder draws them by reading the files, which would download every file it shows. taasant switches them off in the drive's window, and macOS may ask once whether your terminal may control Finder for that. A folder inside the drive has its own setting, under View → Show View Options.
+- **If a download breaks off halfway**, Finder waits for a minute or so and then reports an error.
+- **A folder is part of a file's name.** `taasant list` shows `photos/a.jpg`. Folders and files that are empty are not stored, and are forgotten when the drive is ejected.
+- **Deleting a file older than 48 hours** takes it off the drive, but Telegram keeps its messages. They are encrypted, and the terminal names the file.
 
 ### In scripts
 
@@ -247,7 +272,7 @@ go test ./...          # no token or internet needed, it uses a fake Telegram
 go test -race ./...    # also checks for concurrency mistakes
 ```
 
-`cmd/taasant/` is the command line and the index. `tgstore/` does the splitting, the encryption and the talking to Telegram.
+`cmd/taasant/` is the command line, the index and the drive. `tgstore/` does the splitting, the encryption and the talking to Telegram.
 
 ## Credits
 
