@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path"
 	"path/filepath"
 	"slices"
 	"time"
@@ -24,6 +25,7 @@ const usage = `usage:
   taasant list [search]
   taasant download <name or id> [output-file]
   taasant delete <name or id>
+  taasant mount           show the files as a drive in Finder
   taasant update          get the newest version
   taasant version
 
@@ -80,6 +82,8 @@ func run(args []string) error {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 		defer stop()
 		return update(ctx)
+	case command == "mount" && len(args) == 0:
+		return mount()
 	case command == "list" && len(args) <= 1:
 	case command == "upload" && len(args) == 1:
 	case command == "download" && (len(args) == 1 || len(args) == 2):
@@ -132,6 +136,9 @@ func run(args []string) error {
 		output := e.Name
 		if len(args) == 2 {
 			output = args[1]
+		} else if output != "" {
+			// A file in a folder of the drive has the folder in its name.
+			output = path.Base(output)
 		}
 		if output == "" {
 			return errors.New("this ID is not in the index, so give an output file name")

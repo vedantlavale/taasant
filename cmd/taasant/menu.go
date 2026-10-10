@@ -4,6 +4,7 @@ import (
 	"context"
 	"maps"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -342,7 +343,7 @@ func (m model) listKey(key string) (model, tea.Cmd) {
 	switch key {
 	case "enter":
 		if m.action == "download" {
-			return m.start([]job{{action: "download", name: e.Name, size: e.Size, entry: e, path: filepath.Join(m.startDir, e.Name)}})
+			return m.start([]job{{action: "download", name: e.Name, size: e.Size, entry: e, path: filepath.Join(m.startDir, path.Base(e.Name))}})
 		}
 		m.confirm = m.action == "delete"
 	case "esc", "left":
