@@ -93,14 +93,23 @@ func (d *drive) handler(host string) http.Handler {
 				return
 			}
 		}
-		// The webdav package makes an empty file when a name that is not
-		// there gets locked. Finder locks a file once more after saving it,
-		// and when the save has failed, that empty file would pass for it.
-		if r.Method == "LOCK" {
+		// These three are only passed on for a name that is there. After a
+		// save that failed, the name is not, and the webdav package would
+		// then do harm: for a lock it makes an empty file, which would pass
+		// for the saved one. And when a file is moved over another, it
+		// deletes the other first, before it finds nothing to move.
+		if r.Method == "LOCK" || r.Method == "MOVE" || r.Method == "COPY" {
 			if _, err := d.Stat(r.Context(), strings.TrimPrefix(r.URL.Path, "/"+driveName)); err != nil {
 				http.NotFound(w, r)
 				return
 			}
+		}
+		// Finder moves a file over another without saying that it may,
+		// which by the rules of WebDAV means yes. The webdav package takes
+		// it for no, and saving by "write a new file, move it over the old
+		// one" would fail.
+		if r.Method == "MOVE" && r.Header.Get("Overwrite") == "" {
+			r.Header.Set("Overwrite", "T")
 		}
 		dav.ServeHTTP(w, r)
 	})
@@ -498,15 +507,13 @@ func (d *drive) put(added entry) error {
 // failed is called when a file could not be saved. Finder does not tell: it
 // shows the copy as done whatever the drive answers. So the empty file Finder
 // made first is taken away again, and the alert has to say what happened.
-// When Finder itself broke the copy off, a note is enough.
-func (d *drive) failed(name string, err error, stopped bool) {
+func (d *drive) failed(name string, err error) {
 	d.mu.Lock()
 	delete(d.local, name)
 	delete(d.local, path.Join(parent(name), "._"+path.Base(name)))
 	d.mu.Unlock()
-	if stopped {
-		d.note(name + " was not saved, the copy was stopped")
-		return
+	if errors.Is(err, context.Canceled) {
+		err = errors.New("the copy was cut off")
 	}
 	d.alert(fmt.Sprintf("%s was not saved: %v", name, err))
 }
@@ -602,7 +609,7 @@ func (w *writing) Close() error {
 		err = w.d.put(entry{Name: w.name, ID: w.id, Size: w.size, Uploaded: w.when})
 	}
 	if err != nil {
-		w.d.failed(w.name, err, w.ctx.Err() != nil)
+		w.d.failed(w.name, err)
 	}
 	return err
 }

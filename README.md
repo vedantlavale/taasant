@@ -198,6 +198,7 @@ A few things work differently from a normal disk:
 - **If a download breaks off halfway**, Finder waits for a minute or so and then reports an error.
 - **A folder is part of a file's name.** `taasant list` shows `photos/a.jpg`. Folders and files that are empty are not stored, and are forgotten when the drive is ejected.
 - **Deleting a file older than 48 hours** takes it off the drive, but Telegram keeps its messages. They are encrypted, and the terminal names the file.
+- **Two files with one name.** `taasant upload` lets you store the same name twice. The drive shows the newer one. Delete or rename it there and the older one shows up.
 
 ### In scripts
 

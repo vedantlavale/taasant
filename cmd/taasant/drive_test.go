@@ -225,6 +225,43 @@ func TestDriveBrokenUpload(t *testing.T) {
 	if td.names() != "" {
 		t.Fatalf("the index has %q", td.names())
 	}
+	if len(td.alerts) != 1 || !strings.Contains(td.alerts[0], "big.bin was not saved") {
+		t.Fatalf("the alerts are %q", td.alerts)
+	}
+}
+
+// Many programs save by writing a new file and moving it over the old one.
+// If the new file could not be saved, the move must leave the old one alone.
+func TestDriveMoveOfMissingFile(t *testing.T) {
+	td := newTestDrive(t)
+	td.do("PUT", "notes.txt", "the old text")
+
+	td.refuse.Store(true)
+	td.do("PUT", "notes.tmp", "the new text")
+	destination := "http://" + testHost + "/taasant/notes.txt"
+	if status, _ := td.do("MOVE", "notes.tmp", "", "Destination", destination); status != http.StatusNotFound {
+		t.Fatalf("MOVE of a file that is not there answered %d", status)
+	}
+	if status, got := td.do("GET", "notes.txt", ""); status != http.StatusOK || got != "the old text" {
+		t.Fatalf("after the MOVE the old file answered %d %q", status, got)
+	}
+	if td.names() != "notes.txt" || td.inChat() != 2 {
+		t.Fatalf("the index has %q and the chat %d messages", td.names(), td.inChat())
+	}
+
+	// With the new file saved, the same move puts it in place of the old
+	// one. Finder sends no Overwrite header, and that means yes.
+	td.refuse.Store(false)
+	td.do("PUT", "notes.tmp", "the new text")
+	if status, _ := td.do("MOVE", "notes.tmp", "", "Destination", destination); status != http.StatusNoContent {
+		t.Fatalf("MOVE over a file answered %d", status)
+	}
+	if _, got := td.do("GET", "notes.txt", ""); got != "the new text" {
+		t.Fatalf("after the MOVE the file answered %q", got)
+	}
+	if td.names() != "notes.txt" || td.inChat() != 2 {
+		t.Fatalf("the index has %q and the chat %d messages", td.names(), td.inChat())
+	}
 }
 
 func TestDriveOtherHost(t *testing.T) {
