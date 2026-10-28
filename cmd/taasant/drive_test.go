@@ -358,3 +358,20 @@ func TestFirstByte(t *testing.T) {
 		}
 	}
 }
+
+// A lock that Finder never gave back must not keep a name from being deleted
+// or copied again.
+func TestDriveLockLeftBehind(t *testing.T) {
+	td := newTestDrive(t)
+	td.do("PUT", "notes.txt", "hello")
+	lock := `<D:lockinfo xmlns:D="DAV:"><D:lockscope><D:exclusive/></D:lockscope><D:locktype><D:write/></D:locktype></D:lockinfo>`
+	if status, _ := td.do("LOCK", "notes.txt", lock); status != http.StatusOK {
+		t.Fatalf("LOCK answered %d", status)
+	}
+	if status, _ := td.do("PUT", "notes.txt", "again"); status >= 400 {
+		t.Fatalf("PUT of a locked file answered %d", status)
+	}
+	if status, _ := td.do("DELETE", "notes.txt", ""); status >= 400 {
+		t.Fatalf("DELETE of a locked file answered %d", status)
+	}
+}

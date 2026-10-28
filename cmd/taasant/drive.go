@@ -73,7 +73,7 @@ func (d *drive) handler(host string) http.Handler {
 	dav := &webdav.Handler{
 		Prefix:     "/" + driveName,
 		FileSystem: d,
-		LockSystem: webdav.NewMemLS(),
+		LockSystem: newLocks(),
 		Logger: func(r *http.Request, err error) {
 			// Finder asks for many files that are not there, and a file
 			// that could not be saved has its own alert.
@@ -650,4 +650,52 @@ func (f fileInfo) ContentType(ctx context.Context) (string, error) {
 		return kind, nil
 	}
 	return "application/octet-stream", nil
+}
+
+// locks hands out the locks Finder asks for and never refuses a write because
+// of one. Finder will only write to a drive that can lock, but only one
+// program uses this drive. With the webdav package's own locks, a lock that
+// Finder never gave back, after a copy that was cut off, kept that name from
+// being copied or deleted until the drive was ejected.
+type locks struct {
+	mu      sync.Mutex
+	count   int
+	granted map[string]webdav.LockDetails
+}
+
+func newLocks() *locks { return &locks{granted: map[string]webdav.LockDetails{}} }
+
+func (l *locks) Confirm(time.Time, string, string, ...webdav.Condition) (func(), error) {
+	return func() {}, nil
+}
+
+func (l *locks) Create(_ time.Time, details webdav.LockDetails) (string, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.count++
+	token := fmt.Sprintf("opaquelocktoken:taasant-%d", l.count)
+	l.granted[token] = details
+	return token, nil
+}
+
+func (l *locks) Refresh(_ time.Time, token string, duration time.Duration) (webdav.LockDetails, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	details, ok := l.granted[token]
+	if !ok {
+		return webdav.LockDetails{}, webdav.ErrNoSuchLock
+	}
+	details.Duration = duration
+	l.granted[token] = details
+	return details, nil
+}
+
+func (l *locks) Unlock(_ time.Time, token string) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if _, ok := l.granted[token]; !ok {
+		return webdav.ErrNoSuchLock
+	}
+	delete(l.granted, token)
+	return nil
 }

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"time"
 )
 
 // agentName is the name launchd knows the login job by.
@@ -76,6 +77,14 @@ func autostart(on bool) error {
 	// Taken out first, so that this also replaces an older copy of the job.
 	// That ends a drive that is mounted by it, which is what "off" should do.
 	exec.Command("launchctl", "bootout", domain+"/"+agentName).Run()
+	// The job only goes once its program has ended, which takes a moment
+	// while it ejects the drive and saves the list of files.
+	for range 150 {
+		if exec.Command("launchctl", "print", domain+"/"+agentName).Run() != nil {
+			break
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
 	if !on {
 		if err := os.Remove(plist); err != nil && !os.IsNotExist(err) {
 			return err
