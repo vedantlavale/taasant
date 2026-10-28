@@ -170,6 +170,7 @@ taasant download report            # get it back
 taasant download report copy.pdf   # get it back under another name
 taasant delete report              # remove it
 taasant mount                      # show the files as a drive in Finder (Mac)
+taasant autostart                  # show the drive at every login (Mac)
 taasant update                     # get the newest version of taasant
 ```
 
@@ -186,6 +187,8 @@ $ taasant mount
 ```
 
 The drive is called `taasant.localhost`. Drag files in to store them, drag them out or open them to get them back, and make folders, rename and delete as on any disk. It stays for as long as the command runs. Press Ctrl-C in the terminal, or eject the drive in Finder, to take it away.
+
+To have the drive without a terminal, run `taasant autostart` once. It is in Finder at once, and again at every login, with no window opened and nothing left running in a terminal. Eject it in Finder and it stays away until the next login. `taasant autostart off` stops it for good. Problems are written to `~/Library/Logs/taasant.log`. If you move or update the program, run `taasant autostart` again so the job points at it.
 
 No app is needed and nothing else has to be installed. taasant serves the files to Finder from your own computer, at an address other computers cannot reach.
 

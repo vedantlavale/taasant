@@ -23,7 +23,9 @@ const (
 	drivePort = "8738"
 )
 
-func mount() error {
+// mount shows the drive in Finder. In the background, used by autostart, no
+// window is left open.
+func mount(background bool) error {
 	if runtime.GOOS != "darwin" {
 		return errors.New("mount puts the drive in Finder, so it needs a Mac")
 	}
@@ -45,12 +47,14 @@ func mount() error {
 			"-e", `display notification (item 1 of argv) with title "taasant"`,
 			"-e", "end run", "--", text).Run()
 	}
-	return d.mount()
+	return d.mount(background)
 }
 
 // showWindow is the AppleScript that opens the drive in a Finder window.
 // Finder draws its icon previews by reading the files, which downloads the
 // start of every file in the window. So the window is told to show plain icons.
+// When the second argument is "hide" the window is closed again at once: the
+// drive appears at login, and nobody wants a window for it then.
 const showWindow = `on run argv
 	tell application "Finder"
 		set w to make new Finder window to (POSIX file (item 1 of argv) as alias)
@@ -58,12 +62,16 @@ const showWindow = `on run argv
 		set shows icon preview of list view options of w to false
 		set shows icon preview of column view options of w to false
 		set shows preview column of column view options of w to false
-		activate
+		if (item 2 of argv) is "hide" then
+			close w
+		else
+			activate
+		end if
 	end tell
 end run`
 
 // mount puts the drive in Finder, until Ctrl-C or until it is ejected there.
-func (d *drive) mount() error {
+func (d *drive) mount(background bool) error {
 	// Finder lists the drive under the name of the computer it is on, and
 	// any name that ends in .localhost is this computer.
 	host := driveName + ".localhost"
@@ -93,7 +101,11 @@ func (d *drive) mount() error {
 	// Not waited for: the first time, macOS asks whether this program may
 	// control Finder, and the drive must work before that is answered.
 	go func() {
-		if exec.Command("osascript", "-e", showWindow, "--", folder).Run() != nil {
+		mode := "show"
+		if background {
+			mode = "hide"
+		}
+		if exec.Command("osascript", "-e", showWindow, "--", folder, mode).Run() != nil && !background {
 			exec.Command("open", folder).Run()
 		}
 	}()

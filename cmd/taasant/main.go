@@ -26,6 +26,7 @@ const usage = `usage:
   taasant download <name or id> [output-file]
   taasant delete <name or id>
   taasant mount           show the files as a drive in Finder
+  taasant autostart [off] show the drive at every login, or stop doing that
   taasant update          get the newest version
   taasant version
 
@@ -83,7 +84,13 @@ func run(args []string) error {
 		defer stop()
 		return update(ctx)
 	case command == "mount" && len(args) == 0:
-		return mount()
+		return mount(false)
+	case command == "mount" && len(args) == 1 && args[0] == "background":
+		return mount(true)
+	case command == "autostart" && len(args) == 0:
+		return autostart(true)
+	case command == "autostart" && len(args) == 1 && args[0] == "off":
+		return autostart(false)
 	case command == "list" && len(args) <= 1:
 	case command == "upload" && len(args) == 1:
 	case command == "download" && (len(args) == 1 || len(args) == 2):
