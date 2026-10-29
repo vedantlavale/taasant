@@ -6,8 +6,12 @@ struct TaasantApp: App {
     @ObservedObject private var model = Model.shared
 
     var body: some Scene {
-        MenuBarExtra("taasant", systemImage: model.mounted ? "externaldrive.fill" : "externaldrive") {
+        MenuBarExtra {
             MenuContent(model: model)
+        } label: {
+            Image(systemName: model.mounted ? "externaldrive.fill" : "externaldrive")
+            // The percent is shown next to the icon while Finder copies.
+            if let fraction = model.driveUpload?.fraction { Text("\(Int(fraction * 100))%") }
         }
     }
 }
@@ -61,6 +65,9 @@ struct MenuContent: View {
 
     var body: some View {
         Text(model.mounted ? "Drive connected" : "Drive not connected")
+        if let upload = model.driveUpload {
+            Text("Copying \(upload.title): \(sizes(upload.done, upload.total))")
+        }
         if let message = model.message { Text(message) }
         if model.mounted {
             Button("Open drive") { model.openDrive() }

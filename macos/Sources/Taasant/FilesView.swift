@@ -49,7 +49,7 @@ struct FilesView: View {
             } else {
                 List(shown) { file in row(file) }
             }
-            if !model.jobs.isEmpty { jobs }
+            if !model.jobs.isEmpty || model.driveUpload != nil { jobs }
         }
         .overlay { if view.targeted { RoundedRectangle(cornerRadius: 8).stroke(Color.accentColor, lineWidth: 3).padding(4) } }
         .onDrop(of: [.fileURL], isTargeted: $view.targeted) { providers in
@@ -85,6 +85,15 @@ struct FilesView: View {
 
     private var jobs: some View {
         VStack(alignment: .leading, spacing: 6) {
+            if let upload = model.driveUpload {
+                HStack {
+                    Image(systemName: "arrow.up")
+                    Text("\(upload.title) (copying to the drive)").lineLimit(1).truncationMode(.middle)
+                    Spacer()
+                    Text(sizes(upload.done, upload.total)).font(.caption).foregroundStyle(.secondary)
+                    ProgressView(value: upload.fraction).frame(width: 120)
+                }
+            }
             ForEach(model.jobs) { job in
                 HStack {
                     Image(systemName: job.kind == .upload ? "arrow.up" : "arrow.down")
@@ -95,6 +104,7 @@ struct FilesView: View {
                     } else if job.finished {
                         Image(systemName: "checkmark").foregroundStyle(.green)
                     } else {
+                        Text(sizes(job.done, job.total)).font(.caption).foregroundStyle(.secondary)
                         ProgressView(value: job.fraction).frame(width: 120)
                     }
                 }

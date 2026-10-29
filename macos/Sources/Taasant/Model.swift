@@ -9,6 +9,22 @@ struct StoredFile: Identifiable, Hashable, Decodable {
     let uploaded: Date
 }
 
+// What Finder is copying to the drive, as the drive reports it.
+struct DriveUpload: Decodable {
+    let files: [String]
+    let done: Int64
+    let total: Int64
+
+    var fraction: Double? { total > 0 ? min(Double(done) / Double(total), 1) : nil }
+
+    var title: String { files.count == 1 ? files[0] : "\(files.count) files" }
+}
+
+func sizes(_ done: Int64, _ total: Int64) -> String {
+    let format = { (n: Int64) in ByteCountFormatter.string(fromByteCount: n, countStyle: .file) }
+    return total > 0 ? "\(format(done)) of \(format(total))" : format(done)
+}
+
 struct Job: Identifiable {
     enum Kind { case upload, download }
     let id = UUID()
@@ -16,6 +32,8 @@ struct Job: Identifiable {
     let title: String
     let arguments: [String]
     var fraction: Double?
+    var done: Int64 = 0
+    var total: Int64 = 0
     var error: String?
     var finished = false
 }
@@ -34,14 +52,23 @@ final class Model: ObservableObject {
     @Published var autostart = false
     @Published var configured = true
     @Published var message: String?
+    @Published var driveUpload: DriveUpload?
     var windowOpen = false
 
     private var working = false
 
+    private let progress = home.appendingPathComponent("Library/Application Support/taas/index.json.progress")
     private let config = home.appendingPathComponent("Library/Application Support/taas/config.json")
 
     init() {
         configured = FileManager.default.fileExists(atPath: config.path)
+        // Once a second, so a copy in Finder is followed closely.
+        Task {
+            while true {
+                readProgress()
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+            }
+        }
         Task {
             await tick()
             if configured && !mounted { connect() }
@@ -62,6 +89,20 @@ final class Model: ObservableObject {
         mounted = FileManager.default.fileExists(atPath: driveFolder)
         autostart = FileManager.default.fileExists(atPath: plist.path)
         if windowOpen { await reload() }
+    }
+
+    // The drive writes this file while Finder is copying to it. One that has
+    // not changed for a while was left behind by a drive that stopped.
+    private func readProgress() {
+        let modified = (try? FileManager.default.attributesOfItem(atPath: progress.path))?[.modificationDate] as? Date
+        guard let modified, Date().timeIntervalSince(modified) < 30,
+              let data = try? Data(contentsOf: progress),
+              let found = try? JSONDecoder().decode(DriveUpload.self, from: data)
+        else {
+            driveUpload = nil
+            return
+        }
+        driveUpload = found
     }
 
     // Go writes the time with fractions of a second, which the plain
@@ -211,7 +252,7 @@ final class Model: ObservableObject {
                       let numbers = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                       let done = numbers["done"] as? Double, let total = numbers["total"] as? Double, total > 0
                 else { return }
-                Task { @MainActor in change { $0.fraction = done / total } }
+                Task { @MainActor in change { $0.fraction = done / total; $0.done = Int64(done); $0.total = Int64(total) } }
             }
             change { $0.finished = true; $0.fraction = 1 }
             await reload()

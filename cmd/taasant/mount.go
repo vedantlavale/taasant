@@ -38,6 +38,9 @@ func mount(background bool) error {
 		return err
 	}
 	d := newDrive(store, key, indexFile)
+	d.progress.path = indexFile + ".progress"
+	store.Progress = d.progress.add
+	defer os.Remove(d.progress.path)
 	d.note = func(text string) { fmt.Println(paint(outTTY, dim, "  "+text)) }
 	// Whoever is copying files in Finder is not looking at this window, so
 	// a file that was not saved is also shown as a notification.

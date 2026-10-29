@@ -37,6 +37,8 @@ type drive struct {
 	note  func(text string)
 	alert func(text string)
 
+	progress transfers
+
 	// Finder asks for many things at once, so mu guards everything below.
 	mu sync.Mutex
 	// files is the index as it was last read, and read is the time the
@@ -66,6 +68,9 @@ func newDrive(store *tgstore.Store, key []byte, indexFile string) *drive {
 	}
 }
 
+// sizeKey is where a request's context keeps how big the file being sent is.
+type sizeKey struct{}
+
 // handler answers Finder. Requests under any other host name are refused: a
 // web page can reach this computer under a name of its own, and must not get
 // at the files that way.
@@ -86,6 +91,9 @@ func (d *drive) handler(host string) http.Handler {
 		if r.Host != host {
 			http.Error(w, "the taasant drive only answers Finder on this computer", http.StatusForbidden)
 			return
+		}
+		if r.Method == http.MethodPut && r.ContentLength > 0 {
+			r = r.WithContext(context.WithValue(r.Context(), sizeKey{}, r.ContentLength))
 		}
 		if r.Method == http.MethodGet {
 			if err := d.reach(r); err != nil {
@@ -325,7 +333,8 @@ func (d *drive) OpenFile(ctx context.Context, name string, flag int, perm os.Fil
 		if in, err := d.find(parent(name)); err != nil || !in.dir {
 			return nil, fs.ErrNotExist
 		}
-		return &writing{d: d, ctx: ctx, name: name, when: time.Now()}, nil
+		size, _ := ctx.Value(sizeKey{}).(int64)
+		return &writing{d: d, ctx: ctx, name: name, when: time.Now(), expect: size}, nil
 	}
 
 	info, err := d.find(name)
@@ -561,6 +570,8 @@ type writing struct {
 	name string
 	when time.Time
 	size int64
+	// expect is how big Finder said the file is, if it did.
+	expect int64
 
 	kept []byte
 	// pipe leads to the upload, which starts with the first bytes. done gets
@@ -581,6 +592,7 @@ func (w *writing) Write(p []byte) (int, error) {
 	if w.pipe == nil {
 		reader, writer := io.Pipe()
 		w.pipe, w.done = writer, make(chan error, 1)
+		w.d.progress.begin(w, w.name, w.expect)
 		go func() {
 			id, err := w.d.store.Upload(w.ctx, w.d.key, reader)
 			// A Write that waits for the upload to take its bytes gets the error.
@@ -605,6 +617,7 @@ func (w *writing) Close() error {
 	// taken for a whole one.
 	w.pipe.CloseWithError(w.ctx.Err())
 	err := <-w.done
+	w.d.progress.end(w)
 	if err == nil {
 		err = w.d.put(entry{Name: w.name, ID: w.id, Size: w.size, Uploaded: w.when})
 	}

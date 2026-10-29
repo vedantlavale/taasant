@@ -194,7 +194,7 @@ No app is needed and nothing else has to be installed. taasant serves the files 
 
 A few things work differently from a normal disk:
 
-- **A copy takes as long as the upload.** Finder is done with a file when the file is in Telegram, not before.
+- **A copy takes as long as the upload.** Finder is done with a file when the file is in Telegram, not before. Finder's own progress runs ahead of that, so watch the percent in the Mac app's menu bar icon, or its window, for the real one.
 - **Finder does not tell you when a copy to the drive failed.** taasant does, with a notification and a line in the terminal. The file is then not on the drive, so copy it again.
 - **Opening a file downloads it.** A big file starts to arrive after its first 19 MiB.
 - **Icon previews are off.** Finder draws them by reading the files, which would download every file it shows. taasant switches them off in the drive's window, and macOS may ask once whether your terminal may control Finder for that. A folder inside the drive has its own setting, under View → Show View Options.
@@ -208,7 +208,7 @@ A few things work differently from a normal disk:
 If you would rather click than type, there is a small Mac app: an icon in the menu bar and a window with your files. Download `Taasant.zip` from the [releases page](https://github.com/vedantlavale/taasant/releases/latest), unzip it and drag `Taasant.app` to Applications.
 
 - **The menu bar icon** shows whether the drive is in Finder, and connects or ejects it. **Start at login** brings the drive back every time you log in.
-- **The window** (menu → Show files…) lists what you have stored. Drop files on it to upload them, and use the buttons on a file to download or delete it. Open the app again from Finder or Spotlight if you cannot see the icon.
+- **The window** (menu → Show files…) lists what you have stored. Drop files on it to upload them, and use the buttons on a file to download or delete it. While you copy files to the drive in Finder, the menu bar icon shows the percent that has reached Telegram, and the window shows how many bytes. Open the app again from Finder or Spotlight if you cannot see the icon.
 - **The first time**, the window offers to set taasant up. That opens a terminal and asks the same questions as `taasant` does, because the bot token and the key are best pasted in there.
 
 The app has the `taasant` program inside it and does everything through it, so the app and the terminal always see the same files. It has no developer certificate either, so the first time macOS says it cannot verify it. Press **Done**, then go to System Settings → Privacy & Security and press **Open Anyway**. Or run `xattr -dr com.apple.quarantine /Applications/Taasant.app`.
