@@ -203,6 +203,18 @@ A few things work differently from a normal disk:
 - **Deleting a file older than 48 hours** takes it off the drive, but Telegram keeps its messages. They are encrypted, and the terminal names the file.
 - **Two files with one name.** `taasant upload` lets you store the same name twice. The drive shows the newer one. Delete or rename it there and the older one shows up.
 
+### The Mac app
+
+If you would rather click than type, there is a small Mac app: an icon in the menu bar and a window with your files. Download `Taasant.zip` from the [releases page](https://github.com/vedantlavale/taasant/releases/latest), unzip it and drag `Taasant.app` to Applications.
+
+- **The menu bar icon** shows whether the drive is in Finder, and connects or ejects it. **Start at login** brings the drive back every time you log in.
+- **The window** (menu → Show files…) lists what you have stored. Drop files on it to upload them, and use the buttons on a file to download or delete it. Open the app again from Finder or Spotlight if you cannot see the icon.
+- **The first time**, the window offers to set taasant up. That opens a terminal and asks the same questions as `taasant` does, because the bot token and the key are best pasted in there.
+
+The app has the `taasant` program inside it and does everything through it, so the app and the terminal always see the same files. It has no developer certificate either, so the first time macOS says it cannot verify it. Press **Done**, then go to System Settings → Privacy & Security and press **Open Anyway**. Or run `xattr -dr com.apple.quarantine /Applications/Taasant.app`.
+
+To build it yourself, run `macos/build.sh`. It needs Go and Swift (the command line tools are enough) and leaves `macos/dist/Taasant.app`.
+
 ### In scripts
 
 When the output is not a terminal, taasant drops the colours and the progress bar. `upload` then prints only the file's ID, so you can capture it:
@@ -212,6 +224,8 @@ id=$(taasant upload backup.tar)
 ```
 
 Set `NO_COLOR=1` if you want plain text in a terminal too.
+
+Add `--json` to `list`, `upload`, `download` or `delete` for output a program can read. `taasant list --json` prints all files as one array, and an upload or download prints `{"done":..,"total":..}` as it goes. This is what the Mac app uses.
 
 ### You don't have to type the whole name
 
@@ -276,7 +290,7 @@ go test ./...          # no token or internet needed, it uses a fake Telegram
 go test -race ./...    # also checks for concurrency mistakes
 ```
 
-`cmd/taasant/` is the command line, the index and the drive. `tgstore/` does the splitting, the encryption and the talking to Telegram.
+`cmd/taasant/` is the command line, the index and the drive. `tgstore/` does the splitting, the encryption and the talking to Telegram. `macos/` is the Mac app, written in Swift.
 
 ## Credits
 

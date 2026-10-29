@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -29,6 +30,10 @@ const usage = `usage:
   taasant autostart [off] show the drive at every login, or stop doing that
   taasant update          get the newest version
   taasant version
+
+Add --json to list, upload, download or delete to get lines of JSON, which is
+what the Mac app reads: "list" gives all files as one array, and an upload or
+download gives {"done":..,"total":..} as it goes.
 
 A name can be typed partly: "taasant download hol" finds "holiday.jpg".
 
@@ -66,6 +71,8 @@ func run(args []string) error {
 		return errUsage
 	}
 	command, args := args[0], args[1:]
+	asJSON := slices.Contains(args, "--json")
+	args = slices.DeleteFunc(slices.Clone(args), func(a string) bool { return a == "--json" })
 
 	switch {
 	case command == "keygen" && len(args) == 0:
@@ -109,6 +116,9 @@ func run(args []string) error {
 	}
 
 	if command == "list" {
+		if asJSON {
+			return printJSON(append([]entry{}, entries...))
+		}
 		return list(entries, args)
 	}
 
@@ -122,12 +132,14 @@ func run(args []string) error {
 
 	switch command {
 	case "upload":
-		added, err := addFile(ctx, store, key, indexFile, args[0], showProgress(filepath.Base(args[0])))
+		added, err := addFile(ctx, store, key, indexFile, args[0], progressFor(filepath.Base(args[0]), asJSON))
 		clearProgress()
 		if err != nil {
 			return err
 		}
-		if outTTY {
+		if asJSON {
+			printJSON(added)
+		} else if outTTY {
 			details := formatSize(added.Size) + "  uploaded in " + formatDuration(time.Since(started))
 			printDone(added.Name + "  " + paint(true, dim, details))
 		} else {
@@ -150,10 +162,13 @@ func run(args []string) error {
 		if output == "" {
 			return errors.New("this ID is not in the index, so give an output file name")
 		}
-		err = download(ctx, store, key, e, output, showProgress(output))
+		err = download(ctx, store, key, e, output, progressFor(output, asJSON))
 		clearProgress()
 		if err != nil {
 			return err
+		}
+		if asJSON {
+			return printJSON(map[string]string{"saved": output})
 		}
 		printDone("saved " + output)
 		return nil
@@ -166,7 +181,11 @@ func run(args []string) error {
 		if err := removeFile(ctx, store, key, indexFile, e); err != nil {
 			return err
 		}
-		printDone("deleted " + cmp.Or(e.Name, e.ID))
+		if asJSON {
+			printJSON(map[string]string{"deleted": e.ID})
+		} else {
+			printDone("deleted " + cmp.Or(e.Name, e.ID))
+		}
 		return backupIndex(ctx, store, key, indexFile)
 	}
 }
@@ -286,4 +305,23 @@ func backupIndex(ctx context.Context, store *tgstore.Store, key []byte, path str
 		return err
 	}
 	return os.WriteFile(path+".remote", []byte(id+"\n"), 0o600)
+}
+
+// progressFor shows the progress of one file: a bar for a person, or a line
+// of JSON each time a whole percent has gone by for a program.
+func progressFor(name string, asJSON bool) func(done, total int64) {
+	if !asJSON {
+		return showProgress(name)
+	}
+	last := int64(-1)
+	return func(done, total int64) {
+		if percent := done * 100 / max(total, 1); percent != last {
+			last = percent
+			printJSON(map[string]int64{"done": done, "total": total})
+		}
+	}
+}
+
+func printJSON(v any) error {
+	return json.NewEncoder(os.Stdout).Encode(v)
 }
