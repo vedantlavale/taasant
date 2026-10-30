@@ -36,6 +36,7 @@ struct Job: Identifiable {
     var total: Int64 = 0
     var error: String?
     var finished = false
+    var reveal: URL?
 }
 
 private let driveFolder = "/Volumes/taasant"
@@ -54,6 +55,7 @@ final class Model: ObservableObject {
     @Published var message: String?
     @Published var driveUpload: DriveUpload?
     var windowOpen = false
+    var popoverOpen = false
 
     private var working = false
 
@@ -83,12 +85,12 @@ final class Model: ObservableObject {
     private var plist: URL { home.appendingPathComponent("Library/LaunchAgents/\(agentName).plist") }
 
     // tick looks at everything the screen shows. The list of files is only
-    // read while the window is open.
+    // read while the window or the popover is open.
     func tick() async {
         configured = FileManager.default.fileExists(atPath: config.path)
         mounted = FileManager.default.fileExists(atPath: driveFolder)
         autostart = FileManager.default.fileExists(atPath: plist.path)
-        if windowOpen { await reload() }
+        if windowOpen || popoverOpen { await reload() }
     }
 
     // The drive writes this file while Finder is copying to it. One that has
@@ -205,6 +207,30 @@ final class Model: ObservableObject {
         }
     }
 
+    func drop(_ providers: [NSItemProvider]) -> Bool {
+        for provider in providers {
+            _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                if let url { Task { @MainActor in self.upload([url]) } }
+            }
+        }
+        return true
+    }
+
+    // The popover has no room for a folder panel: the file goes to Downloads
+    // and is shown in Finder when it is there.
+    func quickDownload(_ file: StoredFile) {
+        let downloads = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
+        let name = (file.name as NSString).lastPathComponent
+        var output = downloads.appendingPathComponent(name)
+        var n = 2
+        while FileManager.default.fileExists(atPath: output.path) {
+            let base = (name as NSString).deletingPathExtension, ext = (name as NSString).pathExtension
+            output = downloads.appendingPathComponent(ext.isEmpty ? "\(base) \(n)" : "\(base) \(n).\(ext)")
+            n += 1
+        }
+        enqueue(Job(kind: .download, title: file.name, arguments: ["download", file.id, output.path, "--json"], reveal: output))
+    }
+
     func download(_ file: StoredFile) {
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
@@ -255,6 +281,7 @@ final class Model: ObservableObject {
                 Task { @MainActor in change { $0.fraction = done / total; $0.done = Int64(done); $0.total = Int64(total) } }
             }
             change { $0.finished = true; $0.fraction = 1 }
+            if let reveal = job.reveal { NSWorkspace.shared.activateFileViewerSelecting([reveal]) }
             await reload()
         } catch {
             change { $0.error = error.localizedDescription }

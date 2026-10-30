@@ -1,21 +1,5 @@
 import SwiftUI
 
-@main
-struct TaasantApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
-    @ObservedObject private var model = Model.shared
-
-    var body: some Scene {
-        MenuBarExtra {
-            MenuContent(model: model)
-        } label: {
-            Image(systemName: model.mounted ? "externaldrive.fill" : "externaldrive")
-            // The percent is shown next to the icon while Finder copies.
-            if let fraction = model.driveUpload?.fraction { Text("\(Int(fraction * 100))%") }
-        }
-    }
-}
-
 // The window is made by hand and not as a scene: a scene's window is only made
 // once something asks for it, and there is no Dock icon to ask with.
 @MainActor
@@ -48,6 +32,7 @@ final class FilesWindow: NSObject, NSWindowDelegate {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     @MainActor func applicationDidFinishLaunching(_ notification: Notification) {
+        MenuBar.shared.start()
         // The first time there is nothing to show but how to set up.
         if !Model.shared.configured { FilesWindow.shared.show() }
     }
@@ -57,29 +42,5 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @MainActor func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
         FilesWindow.shared.show()
         return true
-    }
-}
-
-struct MenuContent: View {
-    @ObservedObject var model: Model
-
-    var body: some View {
-        Text(model.mounted ? "Drive connected" : "Drive not connected")
-        if let upload = model.driveUpload {
-            Text("Copying \(upload.title): \(sizes(upload.done, upload.total))")
-        }
-        if let message = model.message { Text(message) }
-        if model.mounted {
-            Button("Open drive") { model.openDrive() }
-            Button("Eject") { model.eject() }
-        } else if model.configured {
-            Button("Connect drive") { model.connect() }
-        }
-        Divider()
-        Button("Show files…") { FilesWindow.shared.show() }
-        Toggle("Start at login", isOn: Binding(get: { model.autostart }, set: { model.setAutostart($0) }))
-            .disabled(!model.configured)
-        Divider()
-        Button("Quit taasant") { NSApp.terminate(nil) }
     }
 }

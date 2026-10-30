@@ -52,14 +52,7 @@ struct FilesView: View {
             if !model.jobs.isEmpty || model.driveUpload != nil { jobs }
         }
         .overlay { if view.targeted { RoundedRectangle(cornerRadius: 8).stroke(Color.accentColor, lineWidth: 3).padding(4) } }
-        .onDrop(of: [.fileURL], isTargeted: $view.targeted) { providers in
-            for provider in providers {
-                _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                    if let url { Task { @MainActor in model.upload([url]) } }
-                }
-            }
-            return true
-        }
+        .onDrop(of: [.fileURL], isTargeted: $view.targeted) { model.drop($0) }
         .confirmationDialog("Delete \(view.asked?.name ?? "")?", isPresented: Binding(get: { view.asked != nil }, set: { if !$0 { view.asked = nil } })) {
             Button("Delete", role: .destructive) { if let file = view.asked { model.delete(file) } }
         } message: {
