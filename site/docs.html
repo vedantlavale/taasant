@@ -420,7 +420,7 @@
         </div>
 
         <h2 id="telegram-sees">What Telegram sees</h2>
-        <p>Your chat holds files called <code>part.bin</code>. Without your key, they are noise.</p>
+        <p>Your channel or chat holds files called <code>part.bin</code>. Without your key, they are noise.</p>
         <div class="split">
           <div class="code" data-nocopy>
             <div class="bar"><span class="tag you">You</span></div>
@@ -541,9 +541,9 @@ go build -o taasant ./cmd/taasant</pre></div>
           </li>
           <li>
             <h3>Choose where the files go</h3>
-            <p><strong>A private channel</strong> (recommended): create a private channel in Telegram, add your bot to it as an administrator, and post any message in it.</p>
-            <p><strong>The chat with the bot</strong>: open your bot in Telegram and press <strong>Start</strong>.</p>
-            <p>taasant waits until it hears from that chat and asks if it is the right one. There is no chat ID to look up.</p>
+            <p><strong>A private channel</strong> (recommended): your files get a place of their own, away from the bot's chat. In Telegram, create a new private channel, add your bot to it as an administrator (leave its rights switched on, the bot has to post there), and post any message in the channel.</p>
+            <p><strong>The chat with the bot</strong>: simpler, with nothing else to create. Open your bot in Telegram and press <strong>Start</strong>.</p>
+            <p>Either way, taasant waits until it hears from that place, shows its name and asks if it is the right one. There is no chat ID to look up. If it found the wrong one, press Esc to look again.</p>
           </li>
           <li>
             <h3>Done</h3>
@@ -560,7 +560,7 @@ go build -o taasant ./cmd/taasant</pre></div>
         <p>The setup screen is new in version 0.3. On an older version, run <code>taasant update</code> first.</p>
 
         <h2 id="settings">Where the settings are kept</h2>
-        <p>The bot token, the chat and the key are saved in one file that only your user account can read.</p>
+        <p>The bot token, the channel or chat and the key are saved in one file that only your user account can read.</p>
         <div class="table-wrap"><table>
           <tr><th>System</th><th>Settings file</th></tr>
           <tr><td>macOS</td><td><code>~/Library/Application Support/taas/config.json</code></td></tr>
@@ -574,12 +574,15 @@ go build -o taasant ./cmd/taasant</pre></div>
         <div class="table-wrap"><table>
           <tr><th>Variable</th><th>What it is</th></tr>
           <tr><td><code>TG_BOT_TOKEN</code></td><td>Token from @BotFather.</td></tr>
-          <tr><td><code>TG_CHAT_ID</code></td><td>The number of the chat the bot stores files in.</td></tr>
+          <tr><td><code>TG_CHAT_ID</code></td><td>The number of the channel or chat the bot stores files in. A private channel's number is negative and starts with <code>-100</code>. See <a href="#env-chat">Finding the number</a>.</td></tr>
           <tr><td><code>TAAS_KEY</code></td><td>The encryption key, 64 hex characters. <code>taasant keygen</code> prints a new one.</td></tr>
           <tr><td><code>TAAS_CONFIG</code></td><td>Where to keep the settings file.</td></tr>
           <tr><td><code>TAAS_INDEX</code></td><td>Where to keep the index file. See <a href="#storage">What ends up where</a>.</td></tr>
           <tr><td><code>NO_COLOR</code></td><td>Set to <code>1</code> for plain text output in a terminal.</td></tr>
         </table></div>
+
+        <h3 id="env-chat">Finding the number for <code>TG_CHAT_ID</code></h3>
+        <p>For a private channel it is negative and starts with <code>-100</code>, like <code>-1001234567890</code>. For the chat with the bot it is a positive number, your own user ID. The Telegram app shows neither. The easy way is to let the setup screen find it: run <code>taasant</code> once with <code>TAAS_CONFIG</code> set to a throwaway path, then read <code>chat_id</code> from that file.</p>
       </section>
 
       <!-- ================= USAGE ================= -->
@@ -741,12 +744,12 @@ taasant update                     # get the newest version of taasant</pre></di
         </table></div>
 
         <h2 id="backup">A backup of that list</h2>
-        <p>Every time you upload or delete, taasant also sends an encrypted copy of the index to your chat, and notes where it is in a file called <code>index.json.remote</code> next to the index. Each backup adds a couple of messages to the chat, so expect some clutter.</p>
+        <p>Every time you upload or delete, taasant also sends an encrypted copy of the index to the same place, and notes where it is in a file called <code>index.json.remote</code> next to the index. Each backup adds a couple of messages to the channel or chat, so expect some clutter.</p>
 
         <div class="callout warn">
           <svg class="i"><use href="#i-alert"/></svg>
           <div><b>Look after the index</b>
-          <p>If you lose it, your files are still in the chat, but taasant no longer knows which messages are which. Copying the <code>taas</code> folder somewhere safe now and then is enough.</p></div>
+          <p>If you lose it, your files are still in the channel or chat, but taasant no longer knows which messages are which. Copying the <code>taas</code> folder somewhere safe now and then is enough.</p></div>
         </div>
       </section>
 
@@ -772,7 +775,11 @@ taasant update                     # get the newest version of taasant</pre></di
         <details><summary>there is no bot token, run "taasant" in a terminal to set up</summary>
           <div><p>taasant has not been set up on this computer. Run <code>taasant</code> with nothing after it and answer its questions. See <a href="#setup">Set it up</a>.</p></div></details>
         <details><summary>the bot can't send messages to the bot</summary>
-          <div><p>Your <code>TG_CHAT_ID</code> is a bot's ID. This usually means you used the number at the start of the token. Use the number @userinfobot gave you.</p></div></details>
+          <div><p>Your <code>TG_CHAT_ID</code> is a bot's ID. This usually means you used the number at the start of the token. Use the number @userinfobot gave you, or let the setup screen find the place for you.</p></div></details>
+        <details><summary>setup keeps waiting after you added the bot to a channel</summary>
+          <div><p>taasant listens for the bot being added to a channel and for new posts there, and it hears nothing from before it started. Make sure the bot is an administrator of that channel, with its rights on, and post a new message in the channel. If you chose the chat with the bot instead, press <strong>Start</strong> in it.</p></div></details>
+        <details><summary>chat not found, or bot is not a member of the channel chat</summary>
+          <div><p>The <code>TG_CHAT_ID</code> is wrong, or the bot is no longer in the channel. For a channel the number starts with <code>-100</code>. Add the bot to the channel as an administrator again, or run setup again.</p></div></details>
         <details><summary>bot can't initiate conversation with a user</summary>
           <div><p>The bot may not write to you until you have written to it. Open your bot in Telegram and press <strong>Start</strong>.</p></div></details>
         <details><summary>401 Unauthorized</summary>

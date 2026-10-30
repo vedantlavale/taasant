@@ -122,7 +122,12 @@ This takes about five minutes, and you only do it once. Run `taasant` and it ask
 
 **2. Make a bot and paste its token.** Use a spare Telegram account for this if you can. In Telegram, open a chat with [@BotFather](https://t.me/BotFather), send `/newbot`, and answer its two questions. It hands you a token that looks like `123456:ABC...`. Paste it into taasant, which checks it with Telegram.
 
-**3. Choose where the files go.** Either a private channel (recommended): create one, add your bot to it as an administrator, and post any message in it. Or the chat with the bot: open your bot and press **Start**. taasant waits until it hears from that chat, so there is no chat ID to look up.
+**3. Choose where the files go.** taasant asks where the bot should keep them:
+
+- **A private channel (recommended).** Your files get a place of their own, away from the bot's chat. In Telegram, create a new private channel, add your bot to it as an administrator (leave its rights switched on, the bot has to post there), and post any message in the channel.
+- **The chat with the bot.** Simpler, with nothing else to create. Open your bot in Telegram and press **Start**.
+
+Either way, taasant waits until it hears from that place, shows its name and asks if it is the right one. There is no chat ID to look up. If it found the wrong one, press Esc to look again.
 
 **4. Done.** taasant makes your encryption key, saves everything, and opens the menu.
 
@@ -136,9 +141,11 @@ Three environment variables do the same job, and each one that is set wins over 
 
 ```bash
 export TG_BOT_TOKEN="123456:ABC..."
-export TG_CHAT_ID="1234567890"
+export TG_CHAT_ID="-1001234567890"
 export TAAS_KEY="64 hex characters, taasant keygen prints a new one"
 ```
+
+`TG_CHAT_ID` is the number of the place the files go. For a private channel it is negative and starts with `-100`, as above. For the chat with the bot it is a positive number, your own user ID. The Telegram app does not show either one. The easy way is to let the setup screen find it: run `taasant` once with `TAAS_CONFIG` set to a throwaway path, then read `chat_id` from that file.
 
 ## Using it
 
@@ -196,16 +203,16 @@ If a file with that name already exists where you are, `download` stops with `fi
 
 ## What ends up where
 
-**In your Telegram chat:** your files, as messages with an attachment called `part.bin`. A small file is two messages (the file and a tiny list of its parts). A big one is several. They are encrypted, so opening one from the Telegram app gets you nothing useful. Always use `taasant download`.
+**In your Telegram channel or chat:** your files, as messages with an attachment called `part.bin`. A small file is two messages (the file and a tiny list of its parts). A big one is several. They are encrypted, so opening one from the Telegram app gets you nothing useful. Always use `taasant download`.
 
 **On your computer:** a list of what you have uploaded, called the index. It lives at `~/Library/Application Support/taas/index.json` on a Mac and `~/.config/taas/index.json` on Linux. Set `TAAS_INDEX` if you want it somewhere else.
 
-**A backup of that list:** every time you upload or delete, taasant also sends an encrypted copy of the index to your chat, and notes where it is in a file called `index.json.remote` next to the index. Each backup adds a couple of messages to the chat, so expect some clutter.
+**A backup of that list:** every time you upload or delete, taasant also sends an encrypted copy of the index to the same place, and notes where it is in a file called `index.json.remote` next to the index. Each backup adds a couple of messages to the channel or chat, so expect some clutter.
 
 ## Things worth knowing
 
 - **Lose the key, lose the files.** Yes, this is here twice.
-- **Look after the index.** If you lose it, your files are still in the chat, but taasant no longer knows which messages are which. Copying the `taas` folder somewhere safe now and then is enough.
+- **Look after the index.** If you lose it, your files are still in the channel or chat, but taasant no longer knows which messages are which. Copying the `taas` folder somewhere safe now and then is enough.
 - **You can only delete recent files.** Telegram lets a bot delete messages for 48 hours after sending them. After that, `taasant delete` will fail, and you would have to remove the messages by hand in the app.
 - **Big files need memory.** Files are handled in 19 MiB parts and several are in memory at once. A very large download can use a lot, because all its parts are fetched together.
 - **Use a second Telegram account for the bot.** Telegram might restrict a bot that is used for storage, so keep your main account out of it.
@@ -217,7 +224,13 @@ If a file with that name already exists where you are, `download` stops with `fi
 taasant has not been set up on this computer. Run `taasant` with nothing after it and answer its questions.
 
 **`the bot can't send messages to the bot`**
-Your `TG_CHAT_ID` is a bot's ID. This usually means you used the number at the start of the token. Use the number @userinfobot gave you.
+Your `TG_CHAT_ID` is a bot's ID. This usually means you used the number at the start of the token. Use the number @userinfobot gave you, or let the setup screen find the place for you.
+
+**Setup keeps waiting after you added the bot to a channel**
+taasant listens for the bot being added to a channel and for new posts there, and it hears nothing from before it started. Make sure the bot is an administrator of that channel, with its rights on, and post a new message in the channel. If you chose the chat with the bot instead, press **Start** in it.
+
+**`chat not found`, or `bot is not a member of the channel chat`**
+The `TG_CHAT_ID` is wrong, or the bot is no longer in the channel. For a channel the number starts with `-100`. Add the bot to the channel as an administrator again, or run setup again.
 
 **`bot can't initiate conversation with a user`**
 The bot may not write to you until you have written to it. Open your bot in Telegram and press Start.
