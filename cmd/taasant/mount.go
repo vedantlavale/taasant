@@ -143,6 +143,6 @@ func (d *drive) mount(background bool) error {
 	if !d.changed {
 		return nil
 	}
-	fmt.Println(paint(outTTY, dim, "  saving the list of files to the chat"))
+	fmt.Println(paint(outTTY, dim, "  saving a backup of the list of files"))
 	return backupIndex(context.Background(), d.vault, d.indexFile)
 }

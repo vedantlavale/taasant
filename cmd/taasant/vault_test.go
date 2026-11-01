@@ -80,7 +80,7 @@ func TestAddFileChoosesBackend(t *testing.T) {
 func TestToFlag(t *testing.T) {
 	for _, args := range [][]string{
 		{"upload", "--to"},
-		{"download", "--to", "r2", "name"},
+		{"list", "--to", "r2"},
 	} {
 		if err := run(args); err != errUsage {
 			t.Errorf("run(%q) = %v, want the usage", args, err)
@@ -125,5 +125,38 @@ func TestTwoPlaces(t *testing.T) {
 	}
 	if entries, _ := loadIndex(td.d.indexFile); len(entries) != 1 || entries[0].Name != "a.txt" {
 		t.Errorf("the index has %+v", entries)
+	}
+}
+
+// The backup of the index lives in the default place, and what is noted next
+// to the index must be enough to get it back from there.
+func TestIndexBackupInABucket(t *testing.T) {
+	td := newTestDrive(t)
+	s3 := fakeBucket(t)
+	v := td.d.vault
+	v.backends["minio"] = s3store.New(s3.URL, "us-east-1", "files", "GOOD", "SECRET")
+	v.def = "minio"
+
+	os.WriteFile(td.d.indexFile, []byte(`[{"name":"a.txt","id":"1:a"}]`), 0o600)
+	if err := backupIndex(context.Background(), v, td.d.indexFile); err != nil {
+		t.Fatal(err)
+	}
+	note, _ := os.ReadFile(td.d.indexFile + ".remote")
+	place, id, _ := strings.Cut(strings.TrimSpace(string(note)), " ")
+	if place != "minio" || len(s3.objects) != 1 {
+		t.Fatalf("the note is %q, %d objects in the bucket", note, len(s3.objects))
+	}
+
+	e, err := find(nil, id)
+	if err != nil {
+		t.Fatalf("the ID of the backup is not accepted: %v", err)
+	}
+	e.Backend = place
+	restored := filepath.Join(t.TempDir(), "index.json")
+	if err := download(context.Background(), v, e, restored, func(done, total int64) {}); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(restored); string(got) != `[{"name":"a.txt","id":"1:a"}]` {
+		t.Errorf("the restored index is %q", got)
 	}
 }

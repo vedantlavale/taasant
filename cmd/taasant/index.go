@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -128,7 +129,7 @@ func find(entries []entry, query string) (entry, error) {
 		return found[0], nil
 	}
 	if len(found) == 0 {
-		if strings.Contains(query, ":") {
+		if raw, err := hex.DecodeString(query); strings.Contains(query, ":") || (err == nil && len(raw) == 16) {
 			return entry{ID: query}, nil
 		}
 		return entry{}, fmt.Errorf("nothing in the index matches %q", query)

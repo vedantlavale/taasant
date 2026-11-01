@@ -29,8 +29,8 @@ type fakeS3 struct {
 	uploads map[string]map[int][]byte
 	// fail, if not nil, may turn a request down with a status.
 	fail func(r *http.Request) int
-	// requests counts what arrived, by "METHOD query".
-	requests int
+	// requests counts what arrived, ranges those that asked for a range.
+	requests, ranges int
 }
 
 func newFake(t *testing.T) (*Store, *fakeS3) {
@@ -128,6 +128,7 @@ func (f *fakeS3) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if header := r.Header.Get("Range"); header != "" {
+			f.ranges++
 			var from, to int
 			fmt.Sscanf(header, "bytes=%d-%d", &from, &to)
 			if to >= len(data) {
@@ -406,5 +407,36 @@ func TestSignQuery(t *testing.T) {
 	want := "Signature=fea454ca298b7da1c68078a5d1bdbfbbe0d65c699e0f91ac7a200a0136783543"
 	if got := req.Header.Get("Authorization"); !strings.HasSuffix(got, want) {
 		t.Errorf("Authorization is %s, want it to end with %s", got, want)
+	}
+}
+
+// Finder reads one file through several readers at once. Together they must
+// not download a chunk more than once.
+func TestReadersShare(t *testing.T) {
+	store, fake := newFake(t)
+	key, content := randomBytes(32), randomBytes(4*testChunk)
+	id, err := store.Upload(context.Background(), key, bytes.NewReader(content), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Go(func() {
+			got, err := io.ReadAll(store.Open(context.Background(), key, id, int64(len(content))))
+			if err != nil || !bytes.Equal(got, content) {
+				t.Errorf("a reader got other bytes, or %v", err)
+			}
+		})
+	}
+	wg.Wait()
+	if fake.ranges != 4 {
+		t.Fatalf("8 readers made %d downloads of 4 chunks", fake.ranges)
+	}
+
+	// Everything is in memory, so a reader later needs nothing.
+	got, err := io.ReadAll(store.Open(context.Background(), key, id, int64(len(content))))
+	if err != nil || !bytes.Equal(got, content) || fake.ranges != 4 {
+		t.Fatalf("a later reader made %d more downloads, or %v", fake.ranges-4, err)
 	}
 }

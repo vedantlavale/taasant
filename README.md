@@ -152,6 +152,25 @@ taasant list                         # shows a WHERE column once you use more th
 
 The setup asks for what each service needs, then tries your bucket with a small test file, so a wrong key shows up right away. The files are encrypted on your computer, as with Telegram, and are stored under random names. A bucket holds files up to 156 GiB each.
 
+For a bucket there are no environment variables, only the settings file. This is what `taasant` writes for R2, and you can write the same by hand. `default` is where new files go, and `backends` can hold several places.
+
+```json
+{
+  "key": "64 hex characters",
+  "default": "r2",
+  "backends": {
+    "r2": {
+      "type": "s3",
+      "endpoint": "https://<account id>.r2.cloudflarestorage.com",
+      "region": "auto",
+      "bucket": "my-bucket",
+      "access_key": "...",
+      "secret_key": "..."
+    }
+  }
+}
+```
+
 ## Using it
 
 There are two ways: a menu, and plain commands. Both do the same things.
@@ -256,7 +275,7 @@ If a file with that name already exists where you are, `download` stops with `fi
 
 **On your computer:** a list of what you have uploaded, called the index. It lives at `~/Library/Application Support/taas/index.json` on a Mac and `~/.config/taas/index.json` on Linux. Set `TAAS_INDEX` if you want it somewhere else.
 
-**A backup of that list:** every time you upload or delete, taasant also sends an encrypted copy of the index to your chat, and notes where it is in a file called `index.json.remote` next to the index. Each backup adds a couple of messages to the chat, so expect some clutter.
+**A backup of that list:** every time you upload or delete, taasant also sends an encrypted copy of the index to your default place, and notes where it is in a file called `index.json.remote` next to the index: the place, then the ID. Each backup adds a couple of messages to the chat, so expect some clutter. To get it back on another computer, run `taasant download --to <place> <id> index.json`.
 
 ## Things worth knowing
 

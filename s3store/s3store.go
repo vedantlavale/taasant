@@ -47,6 +47,11 @@ type Store struct {
 	Client    *http.Client
 
 	chunkSize int
+
+	// What readers have fetched, see reader.go.
+	mu     sync.Mutex
+	chunks map[string]*fetched
+	order  []string
 }
 
 func New(endpoint, region, bucket, accessKey, secretKey string) *Store {

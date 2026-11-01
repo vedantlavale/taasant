@@ -14,6 +14,7 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -23,7 +24,7 @@ const usage = `usage:
   taasant setup           add a place for the files, or fix one
   taasant upload [--to <place>] <file>
   taasant list [search]
-  taasant download <name or id> [output-file]
+  taasant download [--to <place>] <name or id> [output-file]
   taasant delete <name or id>
   taasant mount           show the files as a drive in Finder
   taasant autostart [off] show the drive at every login, or stop doing that
@@ -74,7 +75,7 @@ func run(args []string) error {
 	args = slices.DeleteFunc(slices.Clone(args), func(a string) bool { return a == "--json" })
 	to := ""
 	if i := slices.Index(args, "--to"); i >= 0 {
-		if command != "upload" || i+1 == len(args) {
+		if (command != "upload" && command != "download") || i+1 == len(args) {
 			return errUsage
 		}
 		to = args[i+1]
@@ -165,6 +166,14 @@ func run(args []string) error {
 		e, err := find(entries, args[0])
 		if err != nil {
 			return err
+		}
+		if e.Name == "" && e.Backend == "" {
+			// An ID that is not in the index, such as the backup of it,
+			// has no place written down. --to says which.
+			e.Backend = to
+			if to == "" && !strings.Contains(e.ID, ":") {
+				return errors.New("this ID is not in the index, so say which place it is in with --to <place>")
+			}
 		}
 		output := e.Name
 		if len(args) == 2 {
@@ -329,7 +338,7 @@ func backupIndex(ctx context.Context, v *vault, path string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path+".remote", []byte(id+"\n"), 0o600)
+	return os.WriteFile(path+".remote", []byte(cmp.Or(v.def, "telegram")+" "+id+"\n"), 0o600)
 }
 
 // progressFor shows the progress of one file: a bar for a person, or a line

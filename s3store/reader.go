@@ -7,10 +7,26 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"slices"
+	"strconv"
 )
+
+// keep is how many chunks stay in memory after a reader fetched them.
+const keep = 4
+
+// fetched is a chunk that is on its way or has arrived.
+type fetched struct {
+	done chan struct{} // closed once data or err is set
+	data []byte
+	err  error
+}
 
 // reader reads an object without downloading all of it. Seek only notes the
 // position, and a Read fetches the one chunk it lands in.
+//
+// The readers of a Store share what they fetch. Finder asks for one file in
+// several requests at once, each with a reader of its own, and this way a
+// chunk is still downloaded only once.
 type reader struct {
 	s      *Store
 	ctx    context.Context
@@ -43,7 +59,7 @@ func (r *reader) Read(p []byte) (int, error) {
 	}
 	index := int(r.offset / int64(r.s.chunkSize))
 	if r.data == nil || index != r.index {
-		data, err := r.s.fetchChunk(r.ctx, r.aead, r.id, index, r.size)
+		data, err := r.s.chunk(r.ctx, r.aead, r.id, index, r.size)
 		if err != nil {
 			return 0, err
 		}
@@ -70,6 +86,53 @@ func (r *reader) Seek(offset int64, whence int) (int64, error) {
 	}
 	r.offset = offset
 	return offset, nil
+}
+
+// chunk returns one decrypted chunk. The last few are kept, and a chunk that
+// another reader is fetching right now is waited for, not fetched again.
+func (s *Store) chunk(ctx context.Context, aead cipher.AEAD, id string, index int, size int64) ([]byte, error) {
+	name := id + "/" + strconv.Itoa(index)
+	s.mu.Lock()
+	f, found := s.chunks[name]
+	if !found {
+		f = &fetched{done: make(chan struct{})}
+		if s.chunks == nil {
+			s.chunks = map[string]*fetched{}
+		}
+		s.chunks[name] = f
+		s.order = append(s.order, name)
+		if len(s.order) > keep {
+			delete(s.chunks, s.order[0])
+			s.order = s.order[1:]
+		}
+	}
+	s.mu.Unlock()
+
+	if !found {
+		f.data, f.err = s.fetchChunk(ctx, aead, id, index, size)
+		if f.err != nil {
+			// A failure is not kept: the next reader tries again.
+			s.mu.Lock()
+			if s.chunks[name] == f {
+				delete(s.chunks, name)
+				s.order = slices.DeleteFunc(s.order, func(other string) bool { return other == name })
+			}
+			s.mu.Unlock()
+		}
+		close(f.done)
+		return f.data, f.err
+	}
+
+	select {
+	case <-f.done:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	if f.err != nil {
+		// The reader that was fetching it may just have been stopped.
+		return s.fetchChunk(ctx, aead, id, index, size)
+	}
+	return f.data, nil
 }
 
 // fetchChunk gets one chunk of an object that holds size bytes. Where a chunk
