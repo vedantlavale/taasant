@@ -87,3 +87,43 @@ func TestToFlag(t *testing.T) {
 		}
 	}
 }
+
+// Files in two places at once: each one is found where it was put.
+func TestTwoPlaces(t *testing.T) {
+	td := newTestDrive(t)
+	s3 := fakeBucket(t)
+	td.d.vault.backends["minio"] = s3store.New(s3.URL, "us-east-1", "files", "GOOD", "SECRET")
+	v, ctx, report := td.d.vault, context.Background(), func(done, total int64) {}
+
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "a.txt"), []byte("in telegram"), 0o644)
+	os.WriteFile(filepath.Join(dir, "b.txt"), []byte("in a bucket"), 0o644)
+	a, err := addFile(ctx, v, "", td.d.indexFile, filepath.Join(dir, "a.txt"), report)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := addFile(ctx, v, "minio", td.d.indexFile, filepath.Join(dir, "b.txt"), report)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.Backend != "telegram" || b.Backend != "minio" || len(s3.objects) != 1 {
+		t.Fatalf("files went to %q and %q, %d objects in the bucket", a.Backend, b.Backend, len(s3.objects))
+	}
+
+	for e, want := range map[entry]string{a: "in telegram", b: "in a bucket"} {
+		out := filepath.Join(dir, "out-"+e.Name)
+		if err := download(ctx, v, e, out, report); err != nil {
+			t.Fatal(err)
+		}
+		if got, _ := os.ReadFile(out); string(got) != want {
+			t.Errorf("%s came back as %q", e.Name, got)
+		}
+	}
+
+	if err := removeFile(ctx, v, b, td.d.indexFile); err != nil || len(s3.objects) != 0 {
+		t.Errorf("removing from the bucket: %v, %d objects left", err, len(s3.objects))
+	}
+	if entries, _ := loadIndex(td.d.indexFile); len(entries) != 1 || entries[0].Name != "a.txt" {
+		t.Errorf("the index has %+v", entries)
+	}
+}

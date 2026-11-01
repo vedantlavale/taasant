@@ -2,27 +2,44 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 )
 
-// fakeBucket is an S3 server that accepts the access key GOOD and nothing else.
-func fakeBucket(t *testing.T) string {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// bucket is an S3 server that accepts the access key GOOD and nothing else.
+type bucket struct {
+	*httptest.Server
+	mu      sync.Mutex
+	objects map[string][]byte
+}
+
+func fakeBucket(t *testing.T) *bucket {
+	b := &bucket{objects: map[string][]byte{}}
+	b.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.Contains(r.Header.Get("Authorization"), "Credential=GOOD/") {
 			w.WriteHeader(http.StatusForbidden)
 			fmt.Fprint(w, "<Error><Code>AccessDenied</Code><Message>no</Message></Error>")
 			return
 		}
-		if r.Method == http.MethodDelete {
+		b.mu.Lock()
+		defer b.mu.Unlock()
+		switch r.Method {
+		case http.MethodPut:
+			b.objects[r.URL.Path], _ = io.ReadAll(r.Body)
+		case http.MethodGet:
+			w.Write(b.objects[r.URL.Path])
+		case http.MethodDelete:
+			delete(b.objects, r.URL.Path)
 			w.WriteHeader(http.StatusNoContent)
 		}
 	}))
-	t.Cleanup(server.Close)
-	return server.URL
+	t.Cleanup(b.Close)
+	return b
 }
 
 // minio is the row of MinIO on the first screen.
@@ -30,7 +47,7 @@ var minio = []string{"down", "down", "down", "enter"}
 
 func TestOnboardMinIO(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.json")
-	server := fakeBucket(t)
+	server := fakeBucket(t).URL
 	o := onboard{path: path, heard: -1}
 
 	o = answer(o, minio...)
@@ -63,7 +80,7 @@ func TestOnboardMinIO(t *testing.T) {
 
 func TestOnboardBadKeys(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.json")
-	server := fakeBucket(t)
+	server := fakeBucket(t).URL
 	o := onboard{path: path, heard: -1}
 
 	o = answer(o, minio...)
@@ -111,7 +128,7 @@ func TestOnboardAddsAPlace(t *testing.T) {
 		{[]string{"down", "enter"}, "telegram", "no"},
 	} {
 		path := filepath.Join(t.TempDir(), "config.json")
-		server := fakeBucket(t)
+		server := fakeBucket(t).URL
 		o := onboard{path: path, heard: -1, again: true, conf: telegramConfig("TOKEN", -100, key)}
 
 		o = answer(o, minio...)
