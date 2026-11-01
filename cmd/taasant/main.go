@@ -191,7 +191,7 @@ func run(args []string) error {
 }
 
 // connect makes the store and the key out of the settings.
-func connect() (*tgstore.Store, []byte, error) {
+func connect() (backend, []byte, error) {
 	c, err := settings()
 	if err != nil {
 		return nil, nil, err
@@ -222,7 +222,7 @@ func list(entries []entry, args []string) error {
 // bytes done so far and the total.
 
 // addFile uploads the file at path and writes it into the index.
-func addFile(ctx context.Context, store *tgstore.Store, key []byte, indexFile, path string, report func(done, total int64)) (entry, error) {
+func addFile(ctx context.Context, store backend, key []byte, indexFile, path string, report func(done, total int64)) (entry, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return entry{}, err
@@ -238,12 +238,10 @@ func addFile(ctx context.Context, store *tgstore.Store, key []byte, indexFile, p
 
 	var sent int64
 	report(0, info.Size())
-	store.Progress = func(bytes int) {
+	id, err := store.Upload(ctx, key, file, func(bytes int) {
 		sent += int64(bytes)
 		report(sent, info.Size())
-	}
-	id, err := store.Upload(ctx, key, file)
-	store.Progress = nil
+	})
 	if err != nil {
 		return entry{}, err
 	}
@@ -260,7 +258,7 @@ func addFile(ctx context.Context, store *tgstore.Store, key []byte, indexFile, p
 }
 
 // download refuses to overwrite, so a failed download can never destroy an existing file.
-func download(ctx context.Context, store *tgstore.Store, key []byte, e entry, output string, report func(done, total int64)) error {
+func download(ctx context.Context, store backend, key []byte, e entry, output string, report func(done, total int64)) error {
 	file, err := os.OpenFile(output, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
 		return err
@@ -268,12 +266,10 @@ func download(ctx context.Context, store *tgstore.Store, key []byte, e entry, ou
 
 	var received int64
 	report(0, e.Size)
-	store.Progress = func(bytes int) {
+	err = store.Download(ctx, key, e.ID, file, func(bytes int) {
 		received += int64(bytes)
 		report(received, e.Size)
-	}
-	err = store.Download(ctx, key, e.ID, file)
-	store.Progress = nil
+	})
 	if err != nil {
 		file.Close()
 		os.Remove(output)
@@ -283,7 +279,7 @@ func download(ctx context.Context, store *tgstore.Store, key []byte, e entry, ou
 }
 
 // removeFile deletes a stored file and takes it out of the index.
-func removeFile(ctx context.Context, store *tgstore.Store, key []byte, indexFile string, e entry) error {
+func removeFile(ctx context.Context, store backend, key []byte, indexFile string, e entry) error {
 	if err := store.Delete(ctx, key, e.ID); err != nil {
 		return err
 	}
@@ -295,12 +291,12 @@ func removeFile(ctx context.Context, store *tgstore.Store, key []byte, indexFile
 	return saveIndex(indexFile, entries)
 }
 
-func backupIndex(ctx context.Context, store *tgstore.Store, key []byte, path string) error {
+func backupIndex(ctx context.Context, store backend, key []byte, path string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
-	id, err := store.Upload(ctx, key, bytes.NewReader(data))
+	id, err := store.Upload(ctx, key, bytes.NewReader(data), nil)
 	if err != nil {
 		return err
 	}

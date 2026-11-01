@@ -12,9 +12,9 @@ func TestProgress(t *testing.T) {
 	key, content := randomBytes(32), randomBytes(5000)
 
 	reported := 0
-	store.Progress = func(bytes int) { reported += bytes }
+	progress := func(bytes int) { reported += bytes }
 
-	id, err := store.Upload(context.Background(), key, bytes.NewReader(content))
+	id, err := store.Upload(context.Background(), key, bytes.NewReader(content), progress)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -23,7 +23,7 @@ func TestProgress(t *testing.T) {
 	}
 
 	reported = 0
-	if err := store.Download(context.Background(), key, id, io.Discard); err != nil {
+	if err := store.Download(context.Background(), key, id, io.Discard, progress); err != nil {
 		t.Fatal(err)
 	}
 	if reported != len(content) {

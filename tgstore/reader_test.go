@@ -14,7 +14,7 @@ func TestReader(t *testing.T) {
 	key := randomBytes(32)
 	data := randomBytes(35)
 
-	id, err := store.Upload(ctx, key, bytes.NewReader(data))
+	id, err := store.Upload(ctx, key, bytes.NewReader(data), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestReadersShare(t *testing.T) {
 	key := randomBytes(32)
 	data := randomBytes(35)
 
-	id, err := store.Upload(ctx, key, bytes.NewReader(data))
+	id, err := store.Upload(ctx, key, bytes.NewReader(data), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

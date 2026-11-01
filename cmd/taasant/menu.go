@@ -12,8 +12,6 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-
-	"github.com/vedantlavale/taasant/tgstore"
 )
 
 var menuItems = []struct{ name, about, action string }{
@@ -64,7 +62,7 @@ type model struct {
 	width, height int
 	notice        string // a problem to show on the current screen
 
-	store     *tgstore.Store
+	store     backend
 	key       []byte
 	setup     error // why store and key are missing, if they are
 	indexFile string

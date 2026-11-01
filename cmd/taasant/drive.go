@@ -18,8 +18,6 @@ import (
 	"time"
 
 	"golang.org/x/net/webdav"
-
-	"github.com/vedantlavale/taasant/tgstore"
 )
 
 // drive shows the index as a disk with folders. It has the five methods the
@@ -28,7 +26,7 @@ import (
 // A file's name in the index is its whole path on the drive, such as
 // "photos/a.jpg". The top of the drive has the name "".
 type drive struct {
-	store     *tgstore.Store
+	store     backend
 	key       []byte
 	indexFile string
 	since     time.Time
@@ -60,7 +58,7 @@ type kept struct {
 	when time.Time
 }
 
-func newDrive(store *tgstore.Store, key []byte, indexFile string) *drive {
+func newDrive(store backend, key []byte, indexFile string) *drive {
 	return &drive{
 		store: store, key: key, indexFile: indexFile, since: time.Now(),
 		note: func(string) {}, alert: func(string) {},
@@ -594,7 +592,7 @@ func (w *writing) Write(p []byte) (int, error) {
 		w.pipe, w.done = writer, make(chan error, 1)
 		w.d.progress.begin(w, w.name, w.expect)
 		go func() {
-			id, err := w.d.store.Upload(w.ctx, w.d.key, reader)
+			id, err := w.d.store.Upload(w.ctx, w.d.key, reader, w.d.progress.add)
 			// A Write that waits for the upload to take its bytes gets the error.
 			reader.CloseWithError(err)
 			w.id = id
