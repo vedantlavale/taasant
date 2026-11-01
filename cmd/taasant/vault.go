@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/vedantlavale/taasant/s3store"
 	"github.com/vedantlavale/taasant/tgstore"
 )
 
@@ -26,6 +27,8 @@ func open(t target) (backend, error) {
 	switch t.Type {
 	case "telegram":
 		return tgstore.New(t.Token, t.ChatID), nil
+	case "s3":
+		return s3store.New(t.Endpoint, t.Region, t.Bucket, t.AccessKey, t.SecretKey), nil
 	}
 	return nil, fmt.Errorf("%q is not a kind of storage taasant knows", t.Type)
 }

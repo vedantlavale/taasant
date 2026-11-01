@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/vedantlavale/taasant/s3store"
 )
 
 // telegramOnly is a vault with one backend, the way a setup from before there
@@ -22,6 +24,7 @@ func TestVaultGet(t *testing.T) {
 			"telegram": {Type: "telegram", Token: "TOKEN", ChatID: -100},
 			"r2":       {Type: "telegram", Token: "OTHER", ChatID: -200},
 			"broken":   {Type: "telegram"},
+			"minio":    {Type: "s3", Endpoint: "http://localhost:9000", Region: "us-east-1", Bucket: "b", AccessKey: "a", SecretKey: "s"},
 		},
 	})
 	def, err := v.get("")
@@ -35,8 +38,11 @@ func TestVaultGet(t *testing.T) {
 		t.Error("two names gave the same backend")
 	}
 	_, err = v.get("broken")
-	if err == nil || !strings.Contains(err.Error(), "r2, telegram") {
+	if err == nil || !strings.Contains(err.Error(), "minio, r2, telegram") {
 		t.Errorf("an incomplete backend gave %v, want the places that work", err)
+	}
+	if _, ok := v.backends["minio"].(*s3store.Store); !ok {
+		t.Error("an s3 target did not open as an s3 store")
 	}
 	if _, err := v.get("nowhere"); err == nil {
 		t.Error("a name that is not set up gave a backend")

@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 )
 
 // config is what a device needs to reach the files: the places they can be
@@ -162,6 +163,9 @@ func (t target) check() error {
 			return errors.New(`there is no chat, run "taasant" in a terminal to set up`)
 		}
 	case "s3":
+		if !strings.HasPrefix(t.Endpoint, "https://") && !strings.HasPrefix(t.Endpoint, "http://") {
+			return errors.New("the endpoint of the storage must start with https://")
+		}
 		for _, f := range []struct{ name, value string }{
 			{"endpoint", t.Endpoint}, {"region", t.Region}, {"bucket", t.Bucket},
 			{"access key", t.AccessKey}, {"secret key", t.SecretKey},
