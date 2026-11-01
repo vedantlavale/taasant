@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -18,11 +19,87 @@ import (
 type step int
 
 const (
-	askToken step = iota
-	askPlace      // a channel, or the chat with the bot?
+	askBackend step = iota // Telegram, R2, S3 or MinIO?
+	askToken
+	askPlace // a channel, or the chat with the bot?
 	findChat
+	askField   // one question about an S3 bucket
+	checkField // is the bucket usable with what was typed?
+	askDefault // only when there already was a place: should this one be the default?
 	ready
 )
+
+// A provider is a choice on the first screen. The S3 ones are all the same
+// store, they only ask different questions and build the target from the
+// answers.
+type provider struct {
+	name, label, about string
+	fields             []field
+	build              func(answers []string) target
+}
+
+type field struct {
+	label, hint string
+	secret      bool
+	// problem, if not nil, says what is wrong with an answer.
+	problem func(answer string) string
+}
+
+func isURL(answer string) string {
+	if !strings.HasPrefix(answer, "http://") && !strings.HasPrefix(answer, "https://") {
+		return "The address must start with http:// or https://"
+	}
+	return ""
+}
+
+// isAccountID catches what people paste by mistake, such as the whole
+// address of the bucket.
+func isAccountID(answer string) string {
+	if raw, err := hex.DecodeString(answer); err != nil || len(raw) != 16 {
+		return "An Account ID is 32 letters and numbers. Copy only that from the R2 page."
+	}
+	return ""
+}
+
+var providers = []provider{
+	{name: "telegram", label: "Telegram", about: "free, through a bot of your own"},
+	{
+		name: "r2", label: "Cloudflare R2", about: "paid, no fee for downloads",
+		fields: []field{
+			{"Account ID", "Cloudflare dashboard, R2 Object Storage: it is on the right", false, isAccountID},
+			{"Bucket name", "the bucket you made in R2", false, nil},
+			{"Access Key ID", "R2, Manage API tokens: make a token that can read and write objects", false, nil},
+			{"Secret Access Key", "shown once, together with the Access Key ID", true, nil},
+		},
+		build: func(a []string) target {
+			return target{Type: "s3", Endpoint: "https://" + a[0] + ".r2.cloudflarestorage.com", Region: "auto", Bucket: a[1], AccessKey: a[2], SecretKey: a[3]}
+		},
+	},
+	{
+		name: "s3", label: "Amazon S3", about: "paid",
+		fields: []field{
+			{"Region", "where the bucket is, such as eu-west-1", false, nil},
+			{"Bucket name", "the bucket you made in S3", false, nil},
+			{"Access Key ID", "IAM user with read and write access to that bucket", false, nil},
+			{"Secret Access Key", "shown once, together with the Access Key ID", true, nil},
+		},
+		build: func(a []string) target {
+			return target{Type: "s3", Endpoint: "https://s3." + a[0] + ".amazonaws.com", Region: a[0], Bucket: a[1], AccessKey: a[2], SecretKey: a[3]}
+		},
+	},
+	{
+		name: "minio", label: "MinIO", about: "your own server, or any other S3 service",
+		fields: []field{
+			{"Server address", "such as http://localhost:9000", false, isURL},
+			{"Bucket name", "the bucket you made on the server", false, nil},
+			{"Access Key", "the user name of the server", false, nil},
+			{"Secret Key", "the password of the server", true, nil},
+		},
+		build: func(a []string) target {
+			return target{Type: "s3", Endpoint: a[0], Region: "us-east-1", Bucket: a[1], AccessKey: a[2], SecretKey: a[3]}
+		},
+	},
+}
 
 // onboard is the model of the first start. It fills in conf one question at
 // a time and saves it at the end.
@@ -34,7 +111,11 @@ type onboard struct {
 	waiting bool // Telegram is checking the token
 
 	conf     config
-	token    string // the bot token, until it is saved with the chat
+	provider int      // the place chosen on the first screen
+	answers  []string // the answers about a bucket, up to the question being asked
+	checking bool     // a bucket is being tried
+	again    bool     // setup was run for a place to add, not for the first start
+	token    string   // the bot token, until it is saved with the chat
 	chatID   int64
 	bot      string // the bot's username
 	chat     string // the name of the chat that was found
@@ -50,7 +131,8 @@ type (
 		name string
 		err  error
 	}
-	chatFound struct {
+	bucketChecked struct{ err error }
+	chatFound     struct {
 		search int
 		chat   tgstore.Chat
 		heard  int
@@ -59,11 +141,17 @@ type (
 )
 
 // setUp asks the questions if the settings are not complete yet. It reports
-// whether the menu can open: only once there is a bot, a chat and a key.
+// whether the menu can open: only once there is a place for the files and a key.
 func setUp() (bool, error) {
 	if _, err := settings(); err == nil {
 		return true, nil
 	}
+	return askQuestions(false)
+}
+
+// askQuestions runs the setup screens. again says the settings were complete
+// and a place is being added.
+func askQuestions(again bool) (bool, error) {
 	path, err := configPath()
 	if err != nil {
 		return false, err
@@ -72,7 +160,7 @@ func setUp() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	end, err := tea.NewProgram(onboard{path: path, conf: conf, heard: -1}, tea.WithAltScreen()).Run()
+	end, err := tea.NewProgram(onboard{path: path, conf: conf, heard: -1, again: again}, tea.WithAltScreen()).Run()
 	if err != nil || end.(onboard).step != ready {
 		return false, err
 	}
@@ -126,6 +214,13 @@ func (o onboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return o, nil
 		}
 		o.bot, o.step, o.choice = msg.name, askPlace, 0
+	case bucketChecked:
+		o.checking = false
+		if msg.err != nil {
+			o.notice = "That did not work: " + msg.err.Error()
+			return o, nil
+		}
+		return o.finish()
 	case chatFound:
 		switch {
 		case msg.search != o.search:
@@ -147,11 +242,25 @@ func (o onboard) pressed(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	o.notice = ""
 
 	switch o.step {
+	case askBackend:
+		o.choice = move(o.choice, key, len(providers))
+		switch key {
+		case "enter":
+			o.provider, o.choice, o.input = o.choice, 0, ""
+			o.answers = nil
+			o.step = askToken
+			if len(providers[o.provider].fields) > 0 {
+				o.step = askField
+			}
+		case "esc":
+			return o, tea.Quit
+		}
+
 	case askToken:
 		switch {
 		case o.waiting:
 		case key == "esc":
-			return o, tea.Quit
+			o.step, o.choice, o.input = askBackend, o.provider, ""
 		case key == "enter" && strings.TrimSpace(o.input) != "":
 			o.token, o.waiting = strings.TrimSpace(o.input), true
 			store := o.store()
@@ -187,10 +296,44 @@ func (o onboard) pressed(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			o.search++
 			o.step = askPlace
 		case key == "enter" && o.chat != "":
-			if o.conf.Key == "" {
-				secret := make([]byte, 32)
-				rand.Read(secret)
-				o.conf.Key = hex.EncodeToString(secret)
+			return o.finish()
+		}
+
+	case askField:
+		fields := providers[o.provider].fields
+		answer := strings.TrimSpace(o.input)
+		switch {
+		case key == "esc":
+			o.back()
+		case key == "enter" && answer != "":
+			if problem := fields[len(o.answers)].problem; problem != nil && problem(answer) != "" {
+				o.notice = problem(answer)
+				break
+			}
+			o.answers, o.input = append(o.answers, answer), ""
+			if len(o.answers) == len(fields) {
+				o.step, o.checking = checkField, true
+				return o, o.checkBucket()
+			}
+		default:
+			o.input = typed(o.input, msg)
+		}
+
+	case checkField:
+		switch {
+		case o.checking:
+		case key == "esc":
+			o.back()
+		case key == "enter":
+			o.checking = true
+			return o, o.checkBucket()
+		}
+
+	case askDefault:
+		o.choice = move(o.choice, key, 2)
+		if key == "enter" {
+			if o.choice == 0 {
+				o.conf.Default = providers[o.provider].name
 			}
 			return o.save()
 		}
@@ -219,6 +362,51 @@ func typed(text string, msg tea.KeyMsg) string {
 	return text
 }
 
+// back goes to the question before the one being asked, with its answer
+// typed in again, or to the first screen from the first question.
+func (o *onboard) back() {
+	if len(o.answers) == 0 {
+		o.step, o.choice, o.input = askBackend, o.provider, ""
+		return
+	}
+	o.step = askField
+	o.input, o.answers = o.answers[len(o.answers)-1], o.answers[:len(o.answers)-1]
+}
+
+// checkBucket tries the bucket with what was typed.
+func (o onboard) checkBucket() tea.Cmd {
+	t := providers[o.provider].build(o.answers)
+	return func() tea.Msg {
+		store, err := open(t)
+		if err != nil {
+			return bucketChecked{err}
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		return bucketChecked{store.(interface{ Check(context.Context) error }).Check(ctx)}
+	}
+}
+
+func (o onboard) target() target {
+	if p := providers[o.provider]; len(p.fields) > 0 {
+		return p.build(o.answers)
+	}
+	return target{Type: "telegram", Token: o.token, ChatID: o.chatID}
+}
+
+// finish adds the place that was set up. It becomes the default, unless
+// there already was one and the person says to keep it.
+func (o onboard) finish() (tea.Model, tea.Cmd) {
+	name := providers[o.provider].name
+	o.conf.set(name, o.target())
+	if o.again && o.conf.Default != name {
+		o.step, o.choice = askDefault, 0
+		return o, nil
+	}
+	o.conf.Default = name
+	return o.save()
+}
+
 func (o onboard) store() *tgstore.Store {
 	store := tgstore.New(o.token, 0)
 	if o.endpoint != "" {
@@ -228,14 +416,30 @@ func (o onboard) store() *tgstore.Store {
 }
 
 func (o onboard) save() (tea.Model, tea.Cmd) {
-	o.conf.Default = "telegram"
-	o.conf.set("telegram", target{Type: "telegram", Token: o.token, ChatID: o.chatID})
+	if o.conf.Key == "" {
+		secret := make([]byte, 32)
+		rand.Read(secret)
+		o.conf.Key = hex.EncodeToString(secret)
+	}
 	if err := saveConfig(o.path, o.conf); err != nil {
 		o.notice = err.Error()
 		return o, nil
 	}
 	o.step = ready
 	return o, nil
+}
+
+// position says how far along the questions are: step i of n. The first
+// screen has no number, as how many questions follow depends on its answer.
+func (o onboard) position() (i, n int) {
+	switch o.step {
+	case askToken, askPlace, findChat:
+		return int(o.step-askToken) + 1, 3
+	case askField, checkField:
+		n = len(providers[o.provider].fields)
+		return min(len(o.answers)+1, n), n
+	}
+	return 0, 0
 }
 
 func (o onboard) View() string {
@@ -255,6 +459,13 @@ func (o onboard) View() string {
 	var lines []string
 	keys := "Enter  |  Esc Back"
 	switch o.step {
+	case askBackend:
+		lines = []string{"Where should taasant keep your files?", ""}
+		for i, p := range providers {
+			lines = append(lines, option(i, p.label, p.about))
+		}
+		lines = append(lines, "", dimStyle.Render("You can add more places later with: taasant setup"))
+		keys = "↑↓  |  Enter  |  Esc Quit"
 	case askToken:
 		lines = []string{
 			"taasant keeps your files in Telegram through a bot of your own.",
@@ -266,7 +477,6 @@ func (o onboard) View() string {
 			"",
 			field,
 		}
-		keys = "Enter  |  Esc Quit"
 		if o.waiting {
 			lines = append(lines, "", dimStyle.Render("Asking Telegram…"))
 		}
@@ -295,22 +505,53 @@ func (o onboard) View() string {
 			lines = []string{goodStyle.Render("✓ Found " + o.chat), "", "Is this the right place?"}
 			keys = "Enter Yes, use it  |  Esc No, look again"
 		}
+	case askField:
+		p := providers[o.provider]
+		f := p.fields[len(o.answers)]
+		shown := field
+		if f.secret {
+			shown = "  > " + strings.Repeat("•", min(len([]rune(o.input)), 40)) + cursorStyle.Render("█")
+		}
+		lines = []string{dimStyle.Render(p.label), "", f.label, dimStyle.Render(f.hint), "", shown}
+	case checkField:
+		lines = []string{dimStyle.Render(providers[o.provider].label), "", "Trying the bucket with a small test file…"}
+		if !o.checking {
+			lines = []string{dimStyle.Render(providers[o.provider].label), "", "The bucket could not be used."}
+			keys = "Enter Try again  |  Esc Back"
+		}
+	case askDefault:
+		name := providers[o.provider].label
+		lines = []string{
+			goodStyle.Render("✓ " + name + " works."),
+			"",
+			"Should new files go there unless you say otherwise?",
+			"",
+			option(0, "Yes", "use "+name+" from now on"),
+			option(1, "No", "keep "+o.conf.Default+", and pick "+providers[o.provider].name+" with --to"),
+		}
+		keys = "↑↓  |  Enter"
 	case ready:
 		lines = []string{
 			goodStyle.Render("✓ All set."),
 			"",
-			"Your bot, your chat and the key to your files are saved in:",
+			"New files go to " + o.conf.Default + ". Your settings and the key to your files are saved in:",
 			"  " + o.path,
 			"",
 			warnStyle.Render("Without the key nobody can read your files, you included."),
 			warnStyle.Render("Put a copy of this file in your password manager now."),
 		}
+		if len(o.conf.Backends) > 1 {
+			lines = append(lines[:4], append([]string{"", dimStyle.Render("To use another place for one file: taasant upload --to <place> <file>")}, lines[4:]...)...)
+		}
 		keys = "Enter Open the menu"
+		if o.again {
+			keys = "Enter Done"
+		}
 	}
 
 	title := titleStyle.Render("Set up taasant")
-	if o.step != ready {
-		title += dimStyle.Render(fmt.Sprintf("  step %d of 3", o.step+1))
+	if i, n := o.position(); n > 0 {
+		title += dimStyle.Render(fmt.Sprintf("  step %d of %d", i, n))
 	}
 	lines = append([]string{"", title, ""}, lines...)
 	return strings.Join(append(lines, badStyle.Render(o.notice), "", dimStyle.Render(keys)), "\n")

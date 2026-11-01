@@ -20,6 +20,7 @@ import (
 const usage = `usage:
   taasant                 open the menu
   taasant keygen
+  taasant setup           add a place for the files, or fix one
   taasant upload [--to <place>] <file>
   taasant list [search]
   taasant download <name or id> [output-file]
@@ -86,6 +87,13 @@ func run(args []string) error {
 		rand.Read(key)
 		fmt.Println(hex.EncodeToString(key))
 		return nil
+	case command == "setup" && len(args) == 0:
+		if !outTTY || !isTerminal(os.Stdin) {
+			return errors.New("setup asks questions, so it needs a terminal")
+		}
+		_, err := settings()
+		_, err = askQuestions(err == nil)
+		return err
 	case command == "help":
 		fmt.Println(usage)
 		return nil

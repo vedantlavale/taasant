@@ -54,8 +54,12 @@ func TestOnboardNewStore(t *testing.T) {
 	offsets := &[]string{}
 	o := onboard{path: path, heard: -1, endpoint: fakeBot(t, offsets)}
 
+	if view := o.View(); !strings.Contains(view, "Where should taasant keep your files?") || !strings.Contains(view, "Cloudflare R2") || !strings.Contains(view, "MinIO") {
+		t.Fatalf("the first start does not ask where the files go:\n%s", view)
+	}
+	o = answer(o, "enter")
 	if !strings.Contains(o.View(), "step 1 of 3") {
-		t.Fatalf("the first start does not open on the token:\n%s", o.View())
+		t.Fatalf("Telegram does not open on the token:\n%s", o.View())
 	}
 	o = answer(o, "WRONG", "enter")
 	if o.step != askToken || !strings.Contains(o.View(), "That token does not work") {
@@ -146,7 +150,7 @@ func TestOnboardKeepsKey(t *testing.T) {
 	old := strings.Repeat("ab", 32)
 	o := onboard{path: path, conf: config{Key: old}, heard: -1, endpoint: fakeBot(t, &[]string{})}
 
-	o = answer(o, "TOKEN", "enter", "enter", "enter")
+	o = answer(o, "enter", "TOKEN", "enter", "enter", "enter")
 	if saved, err := loadConfig(path); o.step != ready || err != nil || saved.Key != old {
 		t.Errorf("step %d, saved %+v, %v", o.step, saved, err)
 	}

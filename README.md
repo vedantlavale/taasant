@@ -140,6 +140,18 @@ export TG_CHAT_ID="1234567890"
 export TAAS_KEY="64 hex characters, taasant keygen prints a new one"
 ```
 
+### Other places for your files
+
+Telegram is the free choice. If you would rather pay for storage, taasant also works with **Cloudflare R2**, **Amazon S3** and **MinIO**, and with any other service that speaks the S3 API. The first question in the setup screen asks which one you want, and `taasant setup` adds another later. You can keep several at once: one is the default, and each file remembers where it went, so downloads and deletes find it by themselves.
+
+```bash
+taasant upload report.pdf            # goes to your default place
+taasant upload --to r2 report.pdf    # goes to the place called "r2"
+taasant list                         # shows a WHERE column once you use more than one
+```
+
+The setup asks for what each service needs, then tries your bucket with a small test file, so a wrong key shows up right away. The files are encrypted on your computer, as with Telegram, and are stored under random names. A bucket holds files up to 156 GiB each.
+
 ## Using it
 
 There are two ways: a menu, and plain commands. Both do the same things.
@@ -164,6 +176,7 @@ While files are moving there is a line for each one. Esc cancels the ones that h
 
 ```bash
 taasant upload report.pdf          # store a file
+taasant setup                      # add a place for your files
 taasant list                       # see everything, newest first
 taasant list rep                   # search
 taasant download report            # get it back
