@@ -15,6 +15,7 @@ import (
 type entry struct {
 	Name     string    `json:"name"`
 	ID       string    `json:"id"`
+	Backend  string    `json:"backend,omitempty"`
 	Size     int64     `json:"size"`
 	Uploaded time.Time `json:"uploaded"`
 }

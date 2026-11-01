@@ -4,18 +4,63 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
 )
 
-// config is what a device needs to reach the files: the bot, the chat it
-// posts in and the encryption key.
+// config is what a device needs to reach the files: the places they can be
+// stored, which one is the default, and the encryption key.
 type config struct {
-	Token  string `json:"token"`
-	ChatID int64  `json:"chat_id"`
-	Key    string `json:"key"`
+	Key      string            `json:"key"`
+	Default  string            `json:"default,omitempty"`
+	Backends map[string]target `json:"backends,omitempty"`
+
+	// Before there could be more than one place, the bot and the chat were
+	// kept here. They are only read, see migrate.
+	Token  string `json:"token,omitempty"`
+	ChatID int64  `json:"chat_id,omitempty"`
+}
+
+// target is one place to store files. Type says which of the fields apply:
+// "telegram" uses Token and ChatID, "s3" uses the rest. R2, AWS and MinIO are
+// all "s3", they differ only in these values.
+type target struct {
+	Type string `json:"type"`
+
+	Token  string `json:"token,omitempty"`
+	ChatID int64  `json:"chat_id,omitempty"`
+
+	Endpoint  string `json:"endpoint,omitempty"`
+	Region    string `json:"region,omitempty"`
+	Bucket    string `json:"bucket,omitempty"`
+	AccessKey string `json:"access_key,omitempty"`
+	SecretKey string `json:"secret_key,omitempty"`
+	PathStyle bool   `json:"path_style,omitempty"`
+}
+
+// migrate moves a bot and a chat from an old settings file into a backend.
+func (c *config) migrate() {
+	if c.Token == "" && c.ChatID == 0 {
+		return
+	}
+	if _, found := c.Backends["telegram"]; !found {
+		c.set("telegram", target{Type: "telegram", Token: c.Token, ChatID: c.ChatID})
+	}
+	c.Token, c.ChatID = "", 0
+}
+
+// set adds a backend, and makes it the default if there was none.
+func (c *config) set(name string, t target) {
+	if c.Backends == nil {
+		c.Backends = map[string]target{}
+	}
+	c.Backends[name] = t
+	if c.Default == "" {
+		c.Default = name
+	}
 }
 
 func configPath() (string, error) {
@@ -39,6 +84,7 @@ func loadConfig(path string) (config, error) {
 	if err == nil {
 		err = json.Unmarshal(data, &c)
 	}
+	c.migrate()
 	return c, err
 }
 
@@ -71,13 +117,19 @@ func settings() (config, error) {
 	if err != nil {
 		return config{}, err
 	}
-	if token := os.Getenv("TG_BOT_TOKEN"); token != "" {
-		c.Token = token
-	}
-	if chat := os.Getenv("TG_CHAT_ID"); chat != "" {
-		if c.ChatID, err = strconv.ParseInt(chat, 10, 64); err != nil {
-			return config{}, errors.New("TG_CHAT_ID must be a number")
+	token, chat := os.Getenv("TG_BOT_TOKEN"), os.Getenv("TG_CHAT_ID")
+	if token != "" || chat != "" {
+		t := c.Backends["telegram"]
+		t.Type = "telegram"
+		if token != "" {
+			t.Token = token
 		}
+		if chat != "" {
+			if t.ChatID, err = strconv.ParseInt(chat, 10, 64); err != nil {
+				return config{}, errors.New("TG_CHAT_ID must be a number")
+			}
+		}
+		c.set("telegram", t)
 	}
 	if key := os.Getenv("TAAS_KEY"); key != "" {
 		c.Key = key
@@ -85,15 +137,41 @@ func settings() (config, error) {
 	return c, c.check()
 }
 
+// check says whether the default backend and the key are complete.
 func (c config) check() error {
 	key, err := hex.DecodeString(c.Key)
+	t, found := c.Backends[c.Default]
 	switch {
-	case c.Token == "":
-		return errors.New(`there is no bot token, run "taasant" in a terminal to set up`)
-	case c.ChatID == 0:
-		return errors.New(`there is no chat, run "taasant" in a terminal to set up`)
+	case !found:
+		return errors.New(`there is nowhere to store files yet, run "taasant" in a terminal to set up`)
+	case t.check() != nil:
+		return t.check()
 	case err != nil || len(key) != 32:
 		return errors.New(`the key must be 64 hex characters, create one with "taasant keygen"`)
+	}
+	return nil
+}
+
+func (t target) check() error {
+	switch t.Type {
+	case "telegram":
+		switch {
+		case t.Token == "":
+			return errors.New(`there is no bot token, run "taasant" in a terminal to set up`)
+		case t.ChatID == 0:
+			return errors.New(`there is no chat, run "taasant" in a terminal to set up`)
+		}
+	case "s3":
+		for _, f := range []struct{ name, value string }{
+			{"endpoint", t.Endpoint}, {"region", t.Region}, {"bucket", t.Bucket},
+			{"access key", t.AccessKey}, {"secret key", t.SecretKey},
+		} {
+			if f.value == "" {
+				return fmt.Errorf(`there is no %s for the storage, run "taasant" in a terminal to set up`, f.name)
+			}
+		}
+	default:
+		return fmt.Errorf("%q is not a kind of storage taasant knows", t.Type)
 	}
 	return nil
 }

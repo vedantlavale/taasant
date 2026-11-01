@@ -26,8 +26,7 @@ import (
 // A file's name in the index is its whole path on the drive, such as
 // "photos/a.jpg". The top of the drive has the name "".
 type drive struct {
-	store     backend
-	key       []byte
+	vault     *vault
 	indexFile string
 	since     time.Time
 	// note is told what the drive did. alert is told that a file was not
@@ -58,9 +57,9 @@ type kept struct {
 	when time.Time
 }
 
-func newDrive(store backend, key []byte, indexFile string) *drive {
+func newDrive(v *vault, indexFile string) *drive {
 	return &drive{
-		store: store, key: key, indexFile: indexFile, since: time.Now(),
+		vault: v, indexFile: indexFile, since: time.Now(),
 		note: func(string) {}, alert: func(string) {},
 		local: map[string]kept{}, folders: map[string]bool{},
 	}
@@ -133,7 +132,12 @@ func (d *drive) reach(r *http.Request) error {
 		return nil
 	}
 
-	file := d.store.Open(r.Context(), d.key, info.id, info.size)
+	store, err := d.vault.get(info.where)
+	if err != nil {
+		d.note(fmt.Sprintf("%s could not be read: %v", name, err))
+		return err
+	}
+	file := store.Open(r.Context(), d.vault.key, info.id, info.size)
 	file.Seek(firstByte(r.Header.Get("Range"), info.size), io.SeekStart)
 	if _, err := file.Read(make([]byte, 1)); err != nil && err != io.EOF {
 		d.note(fmt.Sprintf("%s could not be read: %v", name, err))
@@ -235,7 +239,7 @@ func (d *drive) find(name string) (fileInfo, error) {
 		return fileInfo{}, err
 	}
 	if e, found := files[name]; found {
-		return fileInfo{name: name, size: e.Size, when: e.Uploaded, id: e.ID}, nil
+		return fileInfo{name: name, size: e.Size, when: e.Uploaded, id: e.ID, where: e.where()}, nil
 	}
 	if d.folders[name] {
 		return folder, nil
@@ -282,7 +286,7 @@ func (d *drive) list(folder string) ([]os.FileInfo, error) {
 		add(name, fileInfo{when: d.since, dir: true})
 	}
 	for name, e := range files {
-		add(name, fileInfo{size: e.Size, when: e.Uploaded, id: e.ID})
+		add(name, fileInfo{size: e.Size, when: e.Uploaded, id: e.ID, where: e.where()})
 	}
 	for name, file := range d.local {
 		add(name, fileInfo{size: int64(len(file.data)), when: file.when})
@@ -341,7 +345,11 @@ func (d *drive) OpenFile(ctx context.Context, name string, flag int, perm os.Fil
 	}
 	var content io.ReadSeeker = bytes.NewReader(d.local[name].data)
 	if info.id != "" {
-		content = d.store.Open(ctx, d.key, info.id, info.size)
+		store, err := d.vault.get(info.where)
+		if err != nil {
+			return nil, err
+		}
+		content = store.Open(ctx, d.vault.key, info.id, info.size)
 	}
 	return &reading{ReadSeeker: content, d: d, ctx: ctx, info: info}, nil
 }
@@ -411,7 +419,11 @@ func (d *drive) remove(name string) ([]entry, error) {
 // discard deletes a file's messages from the chat. Telegram refuses that for
 // messages older than 48 hours. The file is off the drive either way.
 func (d *drive) discard(e entry) {
-	if err := d.store.Delete(context.Background(), d.key, e.ID); err != nil {
+	store, err := d.vault.get(e.where())
+	if err == nil {
+		err = store.Delete(context.Background(), d.vault.key, e.ID)
+	}
+	if err != nil {
 		d.note(fmt.Sprintf("the messages of %s are still in the chat: %v", e.Name, err))
 	}
 }
@@ -592,7 +604,11 @@ func (w *writing) Write(p []byte) (int, error) {
 		w.pipe, w.done = writer, make(chan error, 1)
 		w.d.progress.begin(w, w.name, w.expect)
 		go func() {
-			id, err := w.d.store.Upload(w.ctx, w.d.key, reader, w.d.progress.add)
+			var id string
+			store, err := w.d.vault.get("")
+			if err == nil {
+				id, err = store.Upload(w.ctx, w.d.vault.key, reader, w.d.progress.add)
+			}
 			// A Write that waits for the upload to take its bytes gets the error.
 			reader.CloseWithError(err)
 			w.id = id
@@ -617,7 +633,7 @@ func (w *writing) Close() error {
 	err := <-w.done
 	w.d.progress.end(w)
 	if err == nil {
-		err = w.d.put(entry{Name: w.name, ID: w.id, Size: w.size, Uploaded: w.when})
+		err = w.d.put(entry{Name: w.name, ID: w.id, Backend: w.d.vault.def, Size: w.size, Uploaded: w.when})
 	}
 	if err != nil {
 		w.d.failed(w.name, err)
@@ -634,11 +650,12 @@ func (w *writing) Stat() (os.FileInfo, error) {
 
 // fileInfo is what Finder gets to know about a file or a folder.
 type fileInfo struct {
-	name string
-	size int64
-	when time.Time
-	dir  bool
-	id   string // of a stored file
+	name  string
+	size  int64
+	when  time.Time
+	dir   bool
+	id    string // of a stored file
+	where string // the backend that holds it
 }
 
 func (f fileInfo) Name() string       { return path.Base(f.name) }

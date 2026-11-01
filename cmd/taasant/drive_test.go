@@ -42,7 +42,7 @@ func newTestDrive(t *testing.T) *testDrive {
 	store := tgstore.New("TOKEN", 1)
 	store.Endpoint = telegram.URL
 
-	td.d = newDrive(store, make([]byte, 32), filepath.Join(t.TempDir(), "index.json"))
+	td.d = newDrive(telegramOnly(store), filepath.Join(t.TempDir(), "index.json"))
 	td.d.alert = func(text string) { td.alerts = append(td.alerts, text) }
 	td.server = httptest.NewServer(td.d.handler(testHost))
 	t.Cleanup(td.server.Close)
@@ -195,7 +195,7 @@ func TestDriveSeesCommands(t *testing.T) {
 
 	file := filepath.Join(t.TempDir(), "second.txt")
 	os.WriteFile(file, []byte("second"), 0o644)
-	_, err := addFile(context.Background(), td.d.store, td.d.key, td.d.indexFile, file, func(done, total int64) {})
+	_, err := addFile(context.Background(), td.d.vault, "", td.d.indexFile, file, func(done, total int64) {})
 	if err != nil {
 		t.Fatal(err)
 	}

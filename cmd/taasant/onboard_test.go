@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -78,7 +80,7 @@ func TestOnboardNewStore(t *testing.T) {
 	}
 
 	saved, err := loadConfig(path)
-	if err != nil || saved.Token != "TOKEN" || saved.ChatID != -100 || saved.check() != nil {
+	if tg := saved.Backends["telegram"]; err != nil || tg.Token != "TOKEN" || tg.ChatID != -100 || saved.Default != "telegram" || saved.check() != nil {
 		t.Errorf("saved %+v, %v", saved, err)
 	}
 }
@@ -93,17 +95,47 @@ func TestSettings(t *testing.T) {
 		t.Error("settings were accepted with nothing set")
 	}
 
-	first := config{Token: "TOKEN", ChatID: -100, Key: strings.Repeat("ab", 32)}
+	first := telegramConfig("TOKEN", -100, strings.Repeat("ab", 32))
 	if err := saveConfig(path, first); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := settings(); err != nil || got != first {
+	if got, err := settings(); err != nil || !reflect.DeepEqual(got, first) {
 		t.Errorf("settings = %+v, %v", got, err)
 	}
 
 	t.Setenv("TG_CHAT_ID", "42")
-	if got, _ := settings(); got.ChatID != 42 || got.Token != "TOKEN" {
+	if got, _ := settings(); got.Backends["telegram"].ChatID != 42 || got.Backends["telegram"].Token != "TOKEN" {
 		t.Errorf("the environment did not win: %+v", got)
+	}
+}
+
+// A settings file from before there were several places keeps working.
+func TestSettingsFromBeforeBackends(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	t.Setenv("TAAS_CONFIG", path)
+	for _, name := range []string{"TG_BOT_TOKEN", "TG_CHAT_ID", "TAAS_KEY"} {
+		t.Setenv(name, "")
+	}
+	key := strings.Repeat("ab", 32)
+	old := `{"token": "TOKEN", "chat_id": -100, "key": "` + key + `"}`
+	if err := os.WriteFile(path, []byte(old), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := settings()
+	if err != nil || !reflect.DeepEqual(got, telegramConfig("TOKEN", -100, key)) {
+		t.Errorf("settings = %+v, %v", got, err)
+	}
+}
+
+// The environment alone is enough to use Telegram.
+func TestSettingsFromEnvironment(t *testing.T) {
+	t.Setenv("TAAS_CONFIG", filepath.Join(t.TempDir(), "config.json"))
+	t.Setenv("TG_BOT_TOKEN", "TOKEN")
+	t.Setenv("TG_CHAT_ID", "-100")
+	t.Setenv("TAAS_KEY", strings.Repeat("ab", 32))
+	got, err := settings()
+	if err != nil || !reflect.DeepEqual(got, telegramConfig("TOKEN", -100, strings.Repeat("ab", 32))) {
+		t.Errorf("settings = %+v, %v", got, err)
 	}
 }
 
@@ -128,7 +160,7 @@ func TestStartFrom(t *testing.T) {
 	t.Setenv("TAAS_INDEX", indexFile)
 	t.Setenv("TAAS_KEY", "")
 
-	if conf, err := startFrom(path); err != nil || conf != (config{}) {
+	if conf, err := startFrom(path); err != nil || !reflect.DeepEqual(conf, config{}) {
 		t.Errorf("a new computer: %+v, %v", conf, err)
 	}
 	if err := saveIndex(indexFile, []entry{{Name: "holiday.jpg", ID: "1:abc"}}); err != nil {
@@ -151,11 +183,16 @@ func TestCheck(t *testing.T) {
 		conf config
 		want string
 	}{
-		{config{}, "no bot token"},
-		{config{Token: "TOKEN"}, "no chat"},
-		{config{Token: "TOKEN", ChatID: -100}, "64 hex characters"},
-		{config{Token: "TOKEN", ChatID: -100, Key: "abc"}, "64 hex characters"},
-		{config{Token: "TOKEN", ChatID: -100, Key: key}, ""},
+		{config{}, "nowhere to store"},
+		{telegramConfig("", 0, key), "no bot token"},
+		{telegramConfig("TOKEN", 0, key), "no chat"},
+		{telegramConfig("TOKEN", -100, ""), "64 hex characters"},
+		{telegramConfig("TOKEN", -100, "abc"), "64 hex characters"},
+		{telegramConfig("TOKEN", -100, key), ""},
+		{config{Key: key, Default: "r2", Backends: map[string]target{"r2": {Type: "s3", Endpoint: "https://x", Region: "auto", Bucket: "b", AccessKey: "a"}}}, "no secret key"},
+		{config{Key: key, Default: "r2", Backends: map[string]target{"r2": {Type: "s3", Endpoint: "https://x", Region: "auto", Bucket: "b", AccessKey: "a", SecretKey: "s"}}}, ""},
+		{config{Key: key, Default: "nope", Backends: map[string]target{"r2": {Type: "s3"}}}, "nowhere to store"},
+		{config{Key: key, Default: "x", Backends: map[string]target{"x": {Type: "ftp"}}}, "not a kind of storage"},
 	}
 	for _, test := range tests {
 		err := test.conf.check()
@@ -166,4 +203,8 @@ func TestCheck(t *testing.T) {
 			t.Errorf("check(%+v) = %v, want an error with %q", test.conf, err, test.want)
 		}
 	}
+}
+
+func telegramConfig(token string, chat int64, key string) config {
+	return config{Key: key, Default: "telegram", Backends: map[string]target{"telegram": {Type: "telegram", Token: token, ChatID: chat}}}
 }

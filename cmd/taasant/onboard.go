@@ -34,6 +34,8 @@ type onboard struct {
 	waiting bool // Telegram is checking the token
 
 	conf     config
+	token    string // the bot token, until it is saved with the chat
+	chatID   int64
 	bot      string // the bot's username
 	chat     string // the name of the chat that was found
 	search   int    // counts the searches for a chat, to tell an old answer from a new one
@@ -130,7 +132,7 @@ func (o onboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case msg.err != nil:
 			o.notice, o.step = msg.err.Error(), askPlace
 		default:
-			o.conf.ChatID, o.heard = msg.chat.ID, msg.heard
+			o.chatID, o.heard = msg.chat.ID, msg.heard
 			o.chat = cmp.Or(msg.chat.Title, msg.chat.FirstName, "a chat")
 		}
 	}
@@ -151,7 +153,7 @@ func (o onboard) pressed(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case key == "esc":
 			return o, tea.Quit
 		case key == "enter" && strings.TrimSpace(o.input) != "":
-			o.conf.Token, o.waiting = strings.TrimSpace(o.input), true
+			o.token, o.waiting = strings.TrimSpace(o.input), true
 			store := o.store()
 			return o, func() tea.Msg {
 				name, err := store.Me(context.Background())
@@ -218,7 +220,7 @@ func typed(text string, msg tea.KeyMsg) string {
 }
 
 func (o onboard) store() *tgstore.Store {
-	store := tgstore.New(o.conf.Token, 0)
+	store := tgstore.New(o.token, 0)
 	if o.endpoint != "" {
 		store.Endpoint = o.endpoint
 	}
@@ -226,6 +228,8 @@ func (o onboard) store() *tgstore.Store {
 }
 
 func (o onboard) save() (tea.Model, tea.Cmd) {
+	o.conf.Default = "telegram"
+	o.conf.set("telegram", target{Type: "telegram", Token: o.token, ChatID: o.chatID})
 	if err := saveConfig(o.path, o.conf); err != nil {
 		o.notice = err.Error()
 		return o, nil
