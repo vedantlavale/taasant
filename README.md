@@ -157,7 +157,9 @@ taasant upload --to r2 report.pdf    # goes to the place called "r2"
 taasant list                         # shows a WHERE column once you use more than one
 ```
 
-The setup asks for what each service needs, then tries your bucket with a small test file, so a wrong key shows up right away. The files are encrypted on your computer, as with Telegram, and are stored under random names. A bucket holds files up to 156 GiB each.
+The setup asks for what each service needs, then tries your bucket the way taasant will use it: it writes a small test file, reads it back, starts and gives up a big upload, and deletes the file. So a key that can only write shows up at once, not when you want a file. The files are encrypted on your computer, as with Telegram, and are stored under random names. A bucket holds files up to 156 GiB each.
+
+Setting up a place that already exists, with the same bucket, replaces its keys. A different bucket or bot is a new place (`r2-2`), because files are stored in the first one. A Cloudflare bucket in the EU has its own address: choose the last option in the setup (MinIO or other S3) and give it that address. If a file is not in the index, as with the backup of the index, give its place to `download` or `delete` with `--to`.
 
 For a bucket there are no environment variables, only the settings file. This is what `taasant` writes for R2, and you can write the same by hand. `default` is where new files go, and `backends` can hold several places.
 
@@ -246,9 +248,9 @@ A few things work differently from a normal disk:
 
 If you would rather click than type, there is a small Mac app: an icon in the menu bar and a window with your files. Download `Taasant.zip` from the [releases page](https://github.com/vedantlavale/taasant/releases/latest), unzip it and drag `Taasant.app` to Applications.
 
-- **The menu bar icon** shows whether the drive is in Finder, and connects or ejects it. The panel uses the macOS glass effect; the window stays dark with the site's ant. **Start at login** brings the drive back every time you log in.
-- **The window** (menu → Show files…) has four sections: Files, Transfers, Drive and Settings. Drop files on it to upload them. A delete asks for confirmation in a dialog, and files can be filtered by kind and sorted by date, name or size. The menu bar popover has the same sections in a compact form, with the file list, its filters, and a bar that follows an upload or a delete. While you copy files to the drive in Finder, the menu bar icon shows the percent that has reached Telegram. Open the app again from Finder or Spotlight if you cannot see the icon.
-- **The first time**, the window offers to set taasant up. That opens a terminal and asks the same questions as `taasant` does, because the bot token and the key are best pasted in there.
+- **The menu bar** is for the quick things. Drop files on the icon or on the panel to store them, watch them go, and save one of the last four files to Downloads. A button opens the window, and a menu connects or ejects the drive, starts it at login and quits. While you copy files to the drive in Finder, the icon shows the percent that has reached its place. Both the panel and the window use the macOS glass effect.
+- **The window** has everything else, in four sections. **Files** has search, filters by kind, sorting, and an Upload button whose arrow sends a file to a place other than the default; a tag shows where each file is once you have more than one place, and a delete asks first. **Transfers** shows what is moving, with a button to cancel it. **Drive** connects and ejects the drive and starts it at login. **Settings** lists your places, adds one, and can keep file names out of the menu bar for a screen share. Drop files anywhere on the window to upload them. Open the app again from Finder or Spotlight if you cannot see the icon.
+- **The first time**, the window and the panel offer to set taasant up. That opens a terminal and asks the same questions as `taasant` does, because tokens and keys are best pasted in there. **Add a place** in Settings runs `taasant setup` the same way.
 
 The app has the `taasant` program inside it and does everything through it, so the app and the terminal always see the same files. It has no developer certificate either, so the first time macOS says it cannot verify it. Press **Done**, then go to System Settings → Privacy & Security and press **Open Anyway**. Or run `xattr -dr com.apple.quarantine /Applications/Taasant.app`.
 
