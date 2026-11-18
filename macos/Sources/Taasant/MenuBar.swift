@@ -59,14 +59,19 @@ final class MenuBar: NSObject {
 
     func close() { panel.close() }
 
-    // A panel would take the focus from the popover and close it.
+    // A file picker takes the focus from the panel, which would close it. The
+    // panel floats above menus, which is above the picker, so it steps down
+    // while the picker is open and the picker is not hidden behind it.
     func pick() {
         let chooser = NSOpenPanel()
         chooser.allowsMultipleSelection = true
         panel.closesOnFocusLoss = false
+        panel.level = .normal
         NSApp.activate(ignoringOtherApps: true)
         let chose = chooser.runModal() == .OK
+        panel.level = .popUpMenu
         panel.closesOnFocusLoss = true
+        panel.makeKey()
         if chose { Model.shared.upload(chooser.urls) }
     }
 

@@ -41,12 +41,14 @@ final class GlassPanel: NSPanel {
     // Esc closes it, as it does a popover.
     override func cancelOperation(_ sender: Any?) { close() }
 
-    // It opens just under the icon, and stays inside the screen.
+    // It opens just under the icon, with its left edge on the icon's, and
+    // stays inside the screen: near the right end of the menu bar it is
+    // pushed left as far as it must be.
     func show(below button: NSStatusBarButton) {
         guard let window = button.window else { return }
         let icon = window.convertToScreen(button.convert(button.bounds, to: nil))
         let visible = (window.screen ?? NSScreen.main)?.visibleFrame ?? .zero
-        let x = min(max(icon.midX - Self.size.width / 2, visible.minX + 8), visible.maxX - Self.size.width - 8)
+        let x = min(max(icon.minX, visible.minX + 8), visible.maxX - Self.size.width - 8)
         setFrame(NSRect(origin: NSPoint(x: x, y: icon.minY - Self.size.height - 6), size: Self.size), display: false)
         alphaValue = 0
         makeKeyAndOrderFront(nil)
