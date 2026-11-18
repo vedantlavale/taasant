@@ -131,3 +131,15 @@
   .foot-cols { grid-template-columns: 1fr 1fr; }
   .foot-about { grid-column: 1 / -1; }
 }
+
+/* The "featured on" badge in the footer. It comes in two colours, and the
+   one that fits the theme is shown. */
+.featured { display: inline-block; margin-top: 16px; }
+.featured img { display: block; width: 160px; height: auto; }
+.on-dark { display: none !important; }
+:root[data-theme="dark"] .on-light { display: none !important; }
+:root[data-theme="dark"] .on-dark { display: block !important; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .on-light { display: none !important; }
+  :root:not([data-theme="light"]) .on-dark { display: block !important; }
+}
