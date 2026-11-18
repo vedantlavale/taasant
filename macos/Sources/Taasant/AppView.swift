@@ -1,7 +1,8 @@
 import SwiftUI
 
-// The full window: a sidebar on the site's dark canvas, with one section of
-// the app in the space beside it.
+// The full window: a sidebar and one section of the app, on the same glass as
+// the menu-bar panel. The glass runs under the title bar, so the window's
+// three buttons float on it; the content stays below them by itself.
 struct AppView: View {
     @ObservedObject var model: Model
     @StateObject private var sidebar = SidebarState()
@@ -23,9 +24,9 @@ struct AppView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Brand.canvas)
             }
         }
+        .glassScrim()
         .onDrop(of: [.fileURL], isTargeted: $drop.targeted) { model.drop($0) }
         .overlay {
             if drop.targeted {

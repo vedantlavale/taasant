@@ -11,12 +11,21 @@ final class FilesWindow: NSObject, NSWindowDelegate {
         let model = Model.shared
         if window == nil {
             let made = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 480),
-                                styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                                styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                                 backing: .buffered, defer: false)
             made.title = "taasant"
             made.isReleasedWhenClosed = false
             made.minSize = NSSize(width: 520, height: 360)
-            made.contentView = NSHostingView(rootView: AppView(model: model))
+            // No title bar of its own: the glass runs to the top and the three
+            // buttons sit on it. What the title bar would hold is the glass, so
+            // the window can be dragged by any part that is not a control.
+            made.titleVisibility = .hidden
+            made.titlebarAppearsTransparent = true
+            made.isOpaque = false
+            made.backgroundColor = .clear
+            made.isMovableByWindowBackground = true
+            made.appearance = NSAppearance(named: .darkAqua)
+            made.contentView = Glass.wrap(AppView(model: model), radius: 0)
             made.delegate = self
             made.center()
             window = made

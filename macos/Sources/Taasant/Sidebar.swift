@@ -34,7 +34,6 @@ struct Sidebar: View {
     @ObservedObject var model: Model
     @ObservedObject var state: SidebarState
     let compact: Bool
-    var glass = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -64,7 +63,7 @@ struct Sidebar: View {
                         .padding(.horizontal, compact ? 0 : 10)
                         .frame(maxWidth: .infinity, alignment: compact ? .center : .leading)
                         .background(state.section == section
-                                    ? (glass ? Color.white.opacity(0.14) : Brand.raised)
+                                    ? Color.white.opacity(0.14)
                                     : Color.clear)
                         .foregroundStyle(state.section == section ? Brand.accent : Brand.muted)
                         .clipShape(RoundedRectangle(cornerRadius: 6))
@@ -100,6 +99,5 @@ struct Sidebar: View {
             }
         }
         .frame(width: compact ? 52 : 176)
-        .background(glass ? Color.clear : Brand.surface)
     }
 }

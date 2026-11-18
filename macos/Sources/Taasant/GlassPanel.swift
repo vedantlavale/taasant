@@ -26,7 +26,7 @@ final class GlassPanel: NSPanel {
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         isReleasedWhenClosed = false
         appearance = NSAppearance(named: .darkAqua)
-        contentView = Self.glass(around: model)
+        contentView = Glass.wrap(PopoverView(model: model), radius: Self.radius)
 
         NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification, object: self, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
@@ -63,44 +63,5 @@ final class GlassPanel: NSPanel {
                 self.onClose()
             }
         }
-    }
-
-    private static func glass(around model: Model) -> NSView {
-        let hosted = NSHostingView(rootView: PopoverView(model: model, glass: true))
-        hosted.appearance = NSAppearance(named: .darkAqua)
-        hosted.wantsLayer = true
-        hosted.layer?.backgroundColor = NSColor.clear.cgColor
-
-        if #available(macOS 26.0, *) {
-            let glass = NSGlassEffectView()
-            glass.appearance = NSAppearance(named: .darkAqua)
-            glass.contentView = hosted
-            glass.cornerRadius = radius
-            // Clear glass is the one that bends what is behind it. The regular
-            // one only blurs it. A tint and the dark layer in PopoverView keep
-            // the text readable.
-            glass.style = .clear
-            glass.tintColor = NSColor.black.withAlphaComponent(0.45)
-            return glass
-        }
-
-        // Older Macs have no glass, only the vibrant material.
-        let blur = NSVisualEffectView()
-        blur.appearance = NSAppearance(named: .darkAqua)
-        blur.material = .hudWindow
-        blur.blendingMode = .behindWindow
-        blur.state = .active
-        blur.wantsLayer = true
-        blur.layer?.cornerRadius = radius
-        blur.layer?.masksToBounds = true
-        hosted.translatesAutoresizingMaskIntoConstraints = false
-        blur.addSubview(hosted)
-        NSLayoutConstraint.activate([
-            hosted.leadingAnchor.constraint(equalTo: blur.leadingAnchor),
-            hosted.trailingAnchor.constraint(equalTo: blur.trailingAnchor),
-            hosted.topAnchor.constraint(equalTo: blur.topAnchor),
-            hosted.bottomAnchor.constraint(equalTo: blur.bottomAnchor),
-        ])
-        return blur
     }
 }

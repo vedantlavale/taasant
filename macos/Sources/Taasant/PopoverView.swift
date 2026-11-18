@@ -3,18 +3,15 @@ import SwiftUI
 // The popover uses the same four sections as the window, in a compact form.
 struct PopoverView: View {
     @ObservedObject var model: Model
-    // The menu-bar panel is glass, so its surfaces stay clear. The window
-    // passes false and keeps the site's black.
-    var glass = false
     @StateObject private var sidebar = SidebarState()
 
     var body: some View {
         VStack(spacing: 0) {
             header
             Divider().background(Brand.line)
-            ActivityStrip(model: model, glass: glass)
+            ActivityStrip(model: model)
             HStack(spacing: 0) {
-                Sidebar(model: model, state: sidebar, compact: true, glass: glass)
+                Sidebar(model: model, state: sidebar, compact: true)
                 Divider().background(Brand.line)
 
                 Group {
@@ -26,12 +23,9 @@ struct PopoverView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(glass ? Color.clear : Brand.canvas)
             }
         }
-        // Clear glass shows what is behind it as it is, so a dark layer keeps
-        // the light text readable over a white page too.
-        .background(glass ? Color.black.opacity(0.25) : Color.clear)
+        .glassScrim()
         .frame(width: 400, height: 440)
         .noticeAlert(model)
     }
@@ -73,6 +67,5 @@ struct PopoverView: View {
         }
         .padding(.horizontal, 12)
         .frame(height: 46)
-        .background(glass ? Color.clear : Brand.surface)
     }
 }
