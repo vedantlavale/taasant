@@ -67,6 +67,11 @@ tell application "Finder"
     set background picture of opts to file ".background:background.tiff"
     set position of item "$name.app" of container window to {180, 215}
     set position of item "Applications" of container window to {480, 215}
+    repeat with leftover in {".background", ".fseventsd", ".VolumeIcon.icns", ".Trashes", ".DS_Store"}
+      try
+        set position of item leftover of container window to {1200, 1200}
+      end try
+    end repeat
     close
     open
     update without registering applications
