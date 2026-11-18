@@ -34,7 +34,7 @@ $ taasant download hol
 
 Everything is encrypted on your computer before it is sent, so Telegram only ever sees scrambled bytes. Big files are split up for you, and you get them back by name, not by some long ID.
 
-The code is small. The part that stores files uses nothing outside the standard library, and the menu is built with [Bubble Tea](https://github.com/charmbracelet/bubbletea). It works, but treat it as a hobby project and not as your only backup.
+The code is small. The part that stores files uses nothing outside the standard library, the menu is built with [Bubble Tea](https://github.com/charmbracelet/bubbletea), and the drive in Finder with Go's [webdav](https://pkg.go.dev/golang.org/x/net/webdav) package. It works, but treat it as a hobby project and not as your only backup.
 
 Under its [bot terms](https://telegram.org/tos/bot-developers), Telegram might restrict a bot that is used for storage. To be safe, make the bot from a second Telegram account, and be reasonable about what you store.
 
@@ -176,10 +176,51 @@ taasant list rep                   # search
 taasant download report            # get it back
 taasant download report copy.pdf   # get it back under another name
 taasant delete report              # remove it
+taasant mount                      # show the files as a drive in Finder (Mac)
+taasant autostart                  # show the drive at every login (Mac)
 taasant update                     # get the newest version of taasant
 ```
 
 Uploads and downloads show a progress bar that moves as the bytes go out. If the connection drops, taasant tries again a few times before it gives up.
+
+### A drive in Finder
+
+On a Mac, `taasant mount` puts your files in Finder's sidebar, under **Locations**:
+
+```console
+$ taasant mount
+✓ the drive is in Finder, under Locations. Ctrl-C ejects it
+  saved holiday.jpg  45.0 MiB
+```
+
+The drive is called `taasant.localhost`. Drag files in to store them, drag them out or open them to get them back, and make folders, rename and delete as on any disk. It stays for as long as the command runs. Press Ctrl-C in the terminal, or eject the drive in Finder, to take it away.
+
+To have the drive without a terminal, run `taasant autostart` once. It is in Finder at once, and again at every login, with no window opened and nothing left running in a terminal. Eject it in Finder and it stays away until the next login. `taasant autostart off` stops it for good. Problems are written to `~/Library/Logs/taasant.log`. If you move or update the program, run `taasant autostart` again so the job points at it.
+
+No app is needed and nothing else has to be installed. taasant serves the files to Finder from your own computer, at an address other computers cannot reach.
+
+A few things work differently from a normal disk:
+
+- **A copy takes as long as the upload.** Finder is done with a file when the file is in Telegram, not before. Finder's own progress runs ahead of that, so watch the percent in the Mac app's menu bar icon, or its window, for the real one.
+- **Finder does not tell you when a copy to the drive failed.** taasant does, with a notification and a line in the terminal. The file is then not on the drive, so copy it again.
+- **Opening a file downloads it.** A big file starts to arrive after its first 19 MiB.
+- **Icon previews are off.** Finder draws them by reading the files, which would download every file it shows. taasant switches them off in the drive's window, and macOS may ask once whether your terminal may control Finder for that. A folder inside the drive has its own setting, under View → Show View Options.
+- **If a download breaks off halfway**, Finder waits for a minute or so and then reports an error.
+- **A folder is part of a file's name.** `taasant list` shows `photos/a.jpg`. Folders and files that are empty are not stored, and are forgotten when the drive is ejected.
+- **Deleting a file older than 48 hours** takes it off the drive, but Telegram keeps its messages. They are encrypted, and the terminal names the file.
+- **Two files with one name.** `taasant upload` lets you store the same name twice. The drive shows the newer one. Delete or rename it there and the older one shows up.
+
+### The Mac app
+
+If you would rather click than type, there is a small Mac app: an icon in the menu bar and a window with your files. Download `Taasant.zip` from the [releases page](https://github.com/vedantlavale/taasant/releases/latest), unzip it and drag `Taasant.app` to Applications.
+
+- **The menu bar icon** shows whether the drive is in Finder, and connects or ejects it. The panel uses the macOS glass effect; the window stays dark with the site's ant. **Start at login** brings the drive back every time you log in.
+- **The window** (menu → Show files…) has four sections: Files, Transfers, Drive and Settings. Drop files on it to upload them. A delete asks for confirmation in a dialog, and files can be filtered by kind and sorted by date, name or size. The menu bar popover has the same sections in a compact form, with the file list, its filters, and a bar that follows an upload or a delete. While you copy files to the drive in Finder, the menu bar icon shows the percent that has reached Telegram. Open the app again from Finder or Spotlight if you cannot see the icon.
+- **The first time**, the window offers to set taasant up. That opens a terminal and asks the same questions as `taasant` does, because the bot token and the key are best pasted in there.
+
+The app has the `taasant` program inside it and does everything through it, so the app and the terminal always see the same files. It has no developer certificate either, so the first time macOS says it cannot verify it. Press **Done**, then go to System Settings → Privacy & Security and press **Open Anyway**. Or run `xattr -dr com.apple.quarantine /Applications/Taasant.app`.
+
+To build it yourself, run `macos/build.sh`. It needs Go and Swift (the command line tools are enough) and leaves `macos/dist/Taasant.app`.
 
 ### In scripts
 
@@ -190,6 +231,8 @@ id=$(taasant upload backup.tar)
 ```
 
 Set `NO_COLOR=1` if you want plain text in a terminal too.
+
+Add `--json` to `list`, `upload`, `download` or `delete` for output a program can read. `taasant list --json` prints all files as one array, and an upload, download or delete prints `{"done":..,"total":..}` as it goes. This is what the Mac app uses.
 
 ### You don't have to type the whole name
 
@@ -213,7 +256,7 @@ If a file with that name already exists where you are, `download` stops with `fi
 
 - **Lose the key, lose the files.** Yes, this is here twice.
 - **Look after the index.** If you lose it, your files are still in the channel or chat, but taasant no longer knows which messages are which. Copying the `taas` folder somewhere safe now and then is enough.
-- **You can only delete recent files.** Telegram lets a bot delete messages for 48 hours after sending them. After that, `taasant delete` will fail, and you would have to remove the messages by hand in the app.
+- **Old files leave messages behind.** Telegram lets a bot delete messages for 48 hours after sending them. Deleting an older file still takes it off the drive, but its encrypted messages stay in the chat. taasant names the file when that happens.
 - **Big files need memory.** Files are handled in 19 MiB parts and several are in memory at once. A very large download can use a lot, because all its parts are fetched together.
 - **Use a second Telegram account for the bot.** Telegram might restrict a bot that is used for storage, so keep your main account out of it.
 - **One computer.** The index is not synced. If you use taasant on two machines, each has its own list.
@@ -260,7 +303,7 @@ go test ./...          # no token or internet needed, it uses a fake Telegram
 go test -race ./...    # also checks for concurrency mistakes
 ```
 
-`cmd/taasant/` is the command line and the index. `tgstore/` does the splitting, the encryption and the talking to Telegram.
+`cmd/taasant/` is the command line, the index and the drive. `tgstore/` does the splitting, the encryption and the talking to Telegram. `macos/` is the Mac app, written in Swift.
 
 ## Credits
 

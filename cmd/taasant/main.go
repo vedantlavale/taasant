@@ -6,12 +6,15 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"os/signal"
+	"path"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/vedantlavale/taasant/tgstore"
@@ -24,8 +27,14 @@ const usage = `usage:
   taasant list [search]
   taasant download <name or id> [output-file]
   taasant delete <name or id>
+  taasant mount           show the files as a drive in Finder
+  taasant autostart [off] show the drive at every login, or stop doing that
   taasant update          get the newest version
   taasant version
+
+Add --json to list, upload, download or delete to get lines of JSON, which is
+what the Mac app reads: "list" gives all files as one array, and an upload,
+download or delete gives {"done":..,"total":..} as it goes.
 
 A name can be typed partly: "taasant download hol" finds "holiday.jpg".
 
@@ -63,6 +72,8 @@ func run(args []string) error {
 		return errUsage
 	}
 	command, args := args[0], args[1:]
+	asJSON := slices.Contains(args, "--json")
+	args = slices.DeleteFunc(slices.Clone(args), func(a string) bool { return a == "--json" })
 
 	switch {
 	case command == "keygen" && len(args) == 0:
@@ -80,6 +91,14 @@ func run(args []string) error {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 		defer stop()
 		return update(ctx)
+	case command == "mount" && len(args) == 0:
+		return mount(false)
+	case command == "mount" && len(args) == 1 && args[0] == "background":
+		return mount(true)
+	case command == "autostart" && len(args) == 0:
+		return autostart(true)
+	case command == "autostart" && len(args) == 1 && args[0] == "off":
+		return autostart(false)
 	case command == "list" && len(args) <= 1:
 	case command == "upload" && len(args) == 1:
 	case command == "download" && (len(args) == 1 || len(args) == 2):
@@ -98,6 +117,9 @@ func run(args []string) error {
 	}
 
 	if command == "list" {
+		if asJSON {
+			return printJSON(append([]entry{}, entries...))
+		}
 		return list(entries, args)
 	}
 
@@ -111,12 +133,14 @@ func run(args []string) error {
 
 	switch command {
 	case "upload":
-		added, err := addFile(ctx, store, key, indexFile, args[0], showProgress(filepath.Base(args[0])))
+		added, err := addFile(ctx, store, key, indexFile, args[0], progressFor(filepath.Base(args[0]), asJSON))
 		clearProgress()
 		if err != nil {
 			return err
 		}
-		if outTTY {
+		if asJSON {
+			printJSON(added)
+		} else if outTTY {
 			details := formatSize(added.Size) + "  uploaded in " + formatDuration(time.Since(started))
 			printDone(added.Name + "  " + paint(true, dim, details))
 		} else {
@@ -132,14 +156,20 @@ func run(args []string) error {
 		output := e.Name
 		if len(args) == 2 {
 			output = args[1]
+		} else if output != "" {
+			// A file in a folder of the drive has the folder in its name.
+			output = path.Base(output)
 		}
 		if output == "" {
 			return errors.New("this ID is not in the index, so give an output file name")
 		}
-		err = download(ctx, store, key, e, output, showProgress(output))
+		err = download(ctx, store, key, e, output, progressFor(output, asJSON))
 		clearProgress()
 		if err != nil {
 			return err
+		}
+		if asJSON {
+			return printJSON(map[string]string{"saved": output})
 		}
 		printDone("saved " + output)
 		return nil
@@ -149,10 +179,22 @@ func run(args []string) error {
 		if err != nil {
 			return err
 		}
-		if err := removeFile(ctx, store, key, indexFile, e); err != nil {
+		note, err := removeFile(ctx, store, key, indexFile, e, progressFor(cmp.Or(e.Name, e.ID), asJSON))
+		if err != nil {
 			return err
 		}
-		printDone("deleted " + cmp.Or(e.Name, e.ID))
+		if asJSON {
+			result := map[string]string{"deleted": e.ID}
+			if note != "" {
+				result["note"] = note
+			}
+			printJSON(result)
+		} else {
+			printDone("deleted " + cmp.Or(e.Name, e.ID))
+			if note != "" {
+				fmt.Fprintln(os.Stderr, "note:", note)
+			}
+		}
 		return backupIndex(ctx, store, key, indexFile)
 	}
 }
@@ -216,6 +258,11 @@ func addFile(ctx context.Context, store *tgstore.Store, key []byte, indexFile, p
 	}
 	added := entry{Name: filepath.Base(path), ID: id, Size: info.Size(), Uploaded: time.Now()}
 
+	unlock, err := lockIndex(indexFile)
+	if err != nil {
+		return added, fmt.Errorf("uploaded as %s, but the index could not be locked: %w", id, err)
+	}
+	defer unlock()
 	entries, err := loadIndex(indexFile)
 	if err == nil {
 		err = saveIndex(indexFile, append(entries, added))
@@ -250,16 +297,34 @@ func download(ctx context.Context, store *tgstore.Store, key []byte, e entry, ou
 }
 
 // removeFile deletes a stored file and takes it out of the index.
-func removeFile(ctx context.Context, store *tgstore.Store, key []byte, indexFile string, e entry) error {
-	if err := store.Delete(ctx, key, e.ID); err != nil {
-		return err
+// removeFile takes a file off the drive. Telegram refuses to delete messages
+// older than 48 hours, but the file still goes: its messages stay in the chat,
+// encrypted and unknown to anyone without the key. The note says so.
+func removeFile(ctx context.Context, store *tgstore.Store, key []byte, indexFile string, e entry, report func(done, total int64)) (string, error) {
+	var note string
+	if err := store.DeleteWithProgress(ctx, key, e.ID, func(done, total int) {
+		if report != nil {
+			report(int64(done), int64(total))
+		}
+	}); err != nil {
+		note = "The messages of " + cmp.Or(e.Name, e.ID) + " are still in the chat. "
+		if strings.Contains(err.Error(), "can't be deleted for everyone") {
+			note += "Telegram only lets a bot delete messages from the last 48 hours."
+		} else {
+			note += err.Error()
+		}
 	}
+	unlock, err := lockIndex(indexFile)
+	if err != nil {
+		return note, err
+	}
+	defer unlock()
 	entries, err := loadIndex(indexFile)
 	if err != nil {
-		return err
+		return note, err
 	}
 	entries = slices.DeleteFunc(entries, func(other entry) bool { return other.ID == e.ID })
-	return saveIndex(indexFile, entries)
+	return note, saveIndex(indexFile, entries)
 }
 
 func backupIndex(ctx context.Context, store *tgstore.Store, key []byte, path string) error {
@@ -272,4 +337,23 @@ func backupIndex(ctx context.Context, store *tgstore.Store, key []byte, path str
 		return err
 	}
 	return os.WriteFile(path+".remote", []byte(id+"\n"), 0o600)
+}
+
+// progressFor shows the progress of one file: a bar for a person, or a line
+// of JSON each time a whole percent has gone by for a program.
+func progressFor(name string, asJSON bool) func(done, total int64) {
+	if !asJSON {
+		return showProgress(name)
+	}
+	last := int64(-1)
+	return func(done, total int64) {
+		if percent := done * 100 / max(total, 1); percent != last {
+			last = percent
+			printJSON(map[string]int64{"done": done, "total": total})
+		}
+	}
+}
+
+func printJSON(v any) error {
+	return json.NewEncoder(os.Stdout).Encode(v)
 }

@@ -18,6 +18,7 @@ type fakeTelegram struct {
 	files     map[string][]byte
 	sent      int
 	failSends int
+	downloads int
 }
 
 func (f *fakeTelegram) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -61,6 +62,7 @@ func (f *fakeTelegram) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	default:
 		var id string
 		fmt.Sscanf(r.URL.Path, "/file/botTOKEN/documents/%s", &id)
+		f.downloads++
 		w.Write(f.files[id])
 	}
 }
@@ -182,8 +184,14 @@ func TestDelete(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Delete(context.Background(), key, id); err != nil {
+	var done, total int
+	if err := store.DeleteWithProgress(context.Background(), key, id, func(d, t int) {
+		done, total = d, t
+	}); err != nil {
 		t.Fatal(err)
+	}
+	if total != 4 || done != total {
+		t.Fatalf("delete progress ended at %d of %d, want 4 of 4", done, total)
 	}
 
 	fake.mu.Lock()

@@ -20,9 +20,10 @@ import (
 
 // fakeTelegram keeps the files it is sent in memory.
 type fakeTelegram struct {
-	mu    sync.Mutex
-	files map[string][]byte
-	sent  int
+	mu           sync.Mutex
+	files        map[string][]byte
+	sent         int
+	refuseDelete bool
 }
 
 func (f *fakeTelegram) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -42,6 +43,11 @@ func (f *fakeTelegram) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		f.files[id] = data
 		fmt.Fprintf(w, `{"ok":true,"result":{"message_id":%d,"document":{"file_id":%q}}}`, f.sent, id)
 	case "/botTOKEN/deleteMessage":
+		if f.refuseDelete {
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprint(w, `{"ok":false,"description":"message can't be deleted for everyone"}`)
+			return
+		}
 		delete(f.files, "file"+r.FormValue("message_id"))
 		fmt.Fprint(w, `{"ok":true,"result":true}`)
 	case "/botTOKEN/getFile":

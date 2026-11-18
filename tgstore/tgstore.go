@@ -33,6 +33,12 @@ type Store struct {
 	Progress func(bytes int)
 
 	partSize int
+
+	// What Readers have fetched, see reader.go.
+	mu     sync.Mutex
+	shapes map[string]shape
+	parts  map[string]*fetched
+	order  []string
 }
 
 type stored struct {
@@ -211,6 +217,12 @@ func (s *Store) Download(ctx context.Context, key []byte, id string, w io.Writer
 // Delete removes the messages that hold the object stored under id.
 // Telegram only lets a bot delete messages sent in the last 48 hours.
 func (s *Store) Delete(ctx context.Context, key []byte, id string) error {
+	return s.DeleteWithProgress(ctx, key, id, nil)
+}
+
+// DeleteWithProgress is Delete, and report is told how many messages have
+// gone after each one, so a caller can show a bar.
+func (s *Store) DeleteWithProgress(ctx context.Context, key []byte, id string, report func(done, total int)) error {
 	aead, err := newCipher(key)
 	if err != nil {
 		return err
@@ -220,12 +232,22 @@ func (s *Store) Delete(ctx context.Context, key []byte, id string) error {
 		return err
 	}
 
-	for _, p := range m.Parts {
+	total := len(m.Parts) + 1
+	for i, p := range m.Parts {
 		if err := s.deleteMessage(ctx, p.MessageID); err != nil {
 			return err
 		}
+		if report != nil {
+			report(i+1, total)
+		}
 	}
-	return s.deleteMessage(ctx, messageID)
+	if err := s.deleteMessage(ctx, messageID); err != nil {
+		return err
+	}
+	if report != nil {
+		report(total, total)
+	}
+	return nil
 }
 
 func (s *Store) fetchManifest(ctx context.Context, aead cipher.AEAD, id string) (manifest, int, error) {
