@@ -384,7 +384,7 @@ func (m model) begin() (model, tea.Cmd) {
 		case "download":
 			err = download(m.ctx, m.store, m.key, j.entry, j.path, report)
 		case "delete":
-			err = removeFile(m.ctx, m.store, m.key, m.indexFile, j.entry)
+			_, err = removeFile(m.ctx, m.store, m.key, m.indexFile, j.entry)
 		}
 		return finished{err}
 	}

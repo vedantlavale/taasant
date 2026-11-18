@@ -247,8 +247,15 @@ final class Model: ObservableObject {
     func delete(_ file: StoredFile) {
         Task {
             do {
-                _ = try await CLI.run(["delete", file.id, "--json"])
+                let output = try await CLI.run(["delete", file.id, "--json"])
                 await reload()
+                // Telegram keeps messages older than 48 hours. The file has
+                // gone from the drive, but say what was left in the chat.
+                if let data = output.data(using: .utf8),
+                   let result = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let note = result["note"] as? String {
+                    message = note
+                }
             } catch {
                 message = error.localizedDescription
             }

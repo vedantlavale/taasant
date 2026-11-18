@@ -256,7 +256,7 @@ If a file with that name already exists where you are, `download` stops with `fi
 
 - **Lose the key, lose the files.** Yes, this is here twice.
 - **Look after the index.** If you lose it, your files are still in the channel or chat, but taasant no longer knows which messages are which. Copying the `taas` folder somewhere safe now and then is enough.
-- **You can only delete recent files.** Telegram lets a bot delete messages for 48 hours after sending them. After that, `taasant delete` will fail, and you would have to remove the messages by hand in the app.
+- **Old files leave messages behind.** Telegram lets a bot delete messages for 48 hours after sending them. Deleting an older file still takes it off the drive, but its encrypted messages stay in the chat. taasant names the file when that happens.
 - **Big files need memory.** Files are handled in 19 MiB parts and several are in memory at once. A very large download can use a lot, because all its parts are fetched together.
 - **Use a second Telegram account for the bot.** Telegram might restrict a bot that is used for storage, so keep your main account out of it.
 - **One computer.** The index is not synced. If you use taasant on two machines, each has its own list.

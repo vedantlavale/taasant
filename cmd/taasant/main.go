@@ -178,13 +178,21 @@ func run(args []string) error {
 		if err != nil {
 			return err
 		}
-		if err := removeFile(ctx, store, key, indexFile, e); err != nil {
+		note, err := removeFile(ctx, store, key, indexFile, e)
+		if err != nil {
 			return err
 		}
 		if asJSON {
-			printJSON(map[string]string{"deleted": e.ID})
+			result := map[string]string{"deleted": e.ID}
+			if note != "" {
+				result["note"] = note
+			}
+			printJSON(result)
 		} else {
 			printDone("deleted " + cmp.Or(e.Name, e.ID))
+			if note != "" {
+				fmt.Fprintln(os.Stderr, "note:", note)
+			}
 		}
 		return backupIndex(ctx, store, key, indexFile)
 	}
@@ -288,21 +296,25 @@ func download(ctx context.Context, store *tgstore.Store, key []byte, e entry, ou
 }
 
 // removeFile deletes a stored file and takes it out of the index.
-func removeFile(ctx context.Context, store *tgstore.Store, key []byte, indexFile string, e entry) error {
+// removeFile takes a file off the drive. Telegram refuses to delete messages
+// older than 48 hours, but the file still goes: its messages stay in the chat,
+// encrypted and unknown to anyone without the key. The note says so.
+func removeFile(ctx context.Context, store *tgstore.Store, key []byte, indexFile string, e entry) (string, error) {
+	var note string
 	if err := store.Delete(ctx, key, e.ID); err != nil {
-		return err
+		note = "the messages of " + cmp.Or(e.Name, e.ID) + " are still in the chat: " + err.Error()
 	}
 	unlock, err := lockIndex(indexFile)
 	if err != nil {
-		return err
+		return note, err
 	}
 	defer unlock()
 	entries, err := loadIndex(indexFile)
 	if err != nil {
-		return err
+		return note, err
 	}
 	entries = slices.DeleteFunc(entries, func(other entry) bool { return other.ID == e.ID })
-	return saveIndex(indexFile, entries)
+	return note, saveIndex(indexFile, entries)
 }
 
 func backupIndex(ctx context.Context, store *tgstore.Store, key []byte, path string) error {
