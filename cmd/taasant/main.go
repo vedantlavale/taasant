@@ -361,6 +361,11 @@ func removeFile(ctx context.Context, v *vault, e entry, indexFile string, report
 	return note, saveIndex(indexFile, entries)
 }
 
+// backupIndex stores an encrypted copy of the index in the default place and
+// notes where it is, in the file next to the index. The copy before it is no
+// use any more, so it is deleted, after the new one is safe: a failure leaves
+// a spare copy and never none. Telegram may refuse that after 48 hours, and
+// a bucket would otherwise keep, and bill, one copy for every change.
 func backupIndex(ctx context.Context, v *vault, path string) error {
 	store, err := v.get("")
 	if err != nil {
@@ -374,7 +379,21 @@ func backupIndex(ctx context.Context, v *vault, path string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path+".remote", []byte(cmp.Or(v.def, "telegram")+" "+id+"\n"), 0o600)
+	previous, _ := os.ReadFile(path + ".remote")
+	if err := os.WriteFile(path+".remote", []byte(cmp.Or(v.def, "telegram")+" "+id+"\n"), 0o600); err != nil {
+		return err
+	}
+	// A note from before there were places has only the ID, of a Telegram copy.
+	if words := strings.Fields(string(previous)); len(words) > 0 {
+		place, old := "telegram", words[len(words)-1]
+		if len(words) == 2 {
+			place = words[0]
+		}
+		if gone, err := v.get(place); err == nil && old != id {
+			gone.Delete(ctx, v.key, old, nil)
+		}
+	}
+	return nil
 }
 
 // progressFor shows the progress of one file: a bar for a person, or a line

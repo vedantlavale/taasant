@@ -184,3 +184,34 @@ func TestFailedBucketDeleteKeepsTheFile(t *testing.T) {
 		t.Errorf("the index has %d files, want the one that could not be deleted", len(entries))
 	}
 }
+
+// One copy of the index is kept, not one for every change.
+func TestIndexBackupReplacesTheLastOne(t *testing.T) {
+	td := newTestDrive(t)
+	s3 := fakeBucket(t)
+	v := td.d.vault
+	v.backends["minio"], v.kinds["minio"] = s3store.New(s3.URL, "us-east-1", "files", "GOOD", "SECRET"), "s3"
+	v.def = "minio"
+	os.WriteFile(td.d.indexFile, []byte(`[]`), 0o600)
+
+	var last string
+	for range 4 {
+		if err := backupIndex(context.Background(), v, td.d.indexFile); err != nil {
+			t.Fatal(err)
+		}
+		note, _ := os.ReadFile(td.d.indexFile + ".remote")
+		last = strings.Fields(string(note))[1]
+	}
+	if len(s3.objects) != 1 {
+		t.Errorf("%d copies of the index are kept, want 1", len(s3.objects))
+	}
+	if _, kept := s3.objects["/files/"+last]; !kept {
+		t.Error("the copy that was kept is not the one the note names")
+	}
+
+	// A note from before there were places holds only the ID of a Telegram copy.
+	os.WriteFile(td.d.indexFile+".remote", []byte("1:AgAC\n"), 0o600)
+	if err := backupIndex(context.Background(), v, td.d.indexFile); err != nil {
+		t.Fatalf("an old-style note broke the backup: %v", err)
+	}
+}

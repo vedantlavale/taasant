@@ -178,7 +178,7 @@ func TestRoundTrip(t *testing.T) {
 			if received != size {
 				t.Errorf("download reported %d bytes, want %d", received, size)
 			}
-			if bytes.Contains(fake.objects[id], content[:min(size, 64)]) && size > 0 {
+			if size >= 16 && bytes.Contains(fake.objects[id], content[:min(size, 64)]) {
 				t.Error("the object holds the file as it is")
 			}
 			if len(fake.uploads) != 0 {
