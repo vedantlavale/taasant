@@ -54,6 +54,9 @@ final class Model: ObservableObject {
     @Published var configured = true
     @Published var message: String?
     @Published var driveUpload: DriveUpload?
+    // A temporary view setting: hiding files here changes nothing on disk or
+    // in Telegram, and the window keeps showing them.
+    @Published var hiddenInMenuBar = false
     var windowOpen = false
     var popoverOpen = false
 
@@ -61,6 +64,10 @@ final class Model: ObservableObject {
 
     private let progress = home.appendingPathComponent("Library/Application Support/taas/index.json.progress")
     private let config = home.appendingPathComponent("Library/Application Support/taas/config.json")
+
+    var settingsPath: String { config.path }
+    var indexFile: String { home.appendingPathComponent("Library/Application Support/taas/index.json").path }
+    var version: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev" }
 
     init() {
         configured = FileManager.default.fileExists(atPath: config.path)

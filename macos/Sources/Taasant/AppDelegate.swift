@@ -10,13 +10,13 @@ final class FilesWindow: NSObject, NSWindowDelegate {
     func show() {
         let model = Model.shared
         if window == nil {
-            let made = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 440),
+            let made = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 480),
                                 styleMask: [.titled, .closable, .miniaturizable, .resizable],
                                 backing: .buffered, defer: false)
             made.title = "taasant"
             made.isReleasedWhenClosed = false
-            made.minSize = NSSize(width: 440, height: 320)
-            made.contentView = NSHostingView(rootView: FilesView(model: model))
+            made.minSize = NSSize(width: 520, height: 360)
+            made.contentView = NSHostingView(rootView: AppView(model: model))
             made.delegate = self
             made.center()
             window = made

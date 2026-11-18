@@ -24,6 +24,7 @@ lipo -create "$dist"/go/taasant-* -output "$app/Contents/Resources/taasant"
 
 swift build -c release $swift_archs
 cp "$(swift build -c release $swift_archs --show-bin-path)/Taasant" "$app/Contents/MacOS/Taasant"
+cp Sources/Taasant/Resources/ant*.png "$app/Contents/Resources/"
 
 sed "s/VERSION/$version/" Info.plist > "$app/Contents/Info.plist"
 cp AppIcon.icns "$app/Contents/Resources/AppIcon.icns"

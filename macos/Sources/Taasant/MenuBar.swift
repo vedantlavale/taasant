@@ -16,7 +16,7 @@ final class MenuBar: NSObject, NSPopoverDelegate {
         let model = Model.shared
         popover.behavior = .transient
         popover.delegate = self
-        popover.contentSize = NSSize(width: 340, height: 440)
+        popover.contentSize = NSSize(width: 400, height: 440)
         popover.contentViewController = NSHostingController(rootView: PopoverView(model: model))
 
         guard let button = item.button else { return }
@@ -67,12 +67,27 @@ final class MenuBar: NSObject, NSPopoverDelegate {
         if chose { Model.shared.upload(panel.urls) }
     }
 
+    // The ant is the site's mark, drawn as a template so macOS colours it to
+    // match the menu bar. A small dot under it means the drive is connected.
+    private func icon(_ connected: Bool) -> NSImage? {
+        let name = connected ? "ant-menu-on" : "ant-menu"
+        guard let url = Bundle.main.url(forResource: name, withExtension: "png"),
+              let image = NSImage(contentsOf: url) else { return nil }
+        image.isTemplate = true
+        image.size = NSSize(width: 22, height: 12)
+        return image
+    }
+
     // The percent is shown next to the icon while a file moves.
     private func refresh() {
         let model = Model.shared
         guard let button = item.button else { return }
-        button.image = NSImage(systemSymbolName: model.mounted ? "externaldrive.fill" : "externaldrive",
-                               accessibilityDescription: "taasant")
+        if let image = icon(model.mounted) {
+            button.image = image
+        } else {
+            button.image = NSImage(systemSymbolName: model.mounted ? "externaldrive.fill" : "externaldrive",
+                                   accessibilityDescription: "taasant")
+        }
         let fraction = model.jobs.first { !$0.finished && $0.error == nil }?.fraction ?? model.driveUpload?.fraction
         button.imagePosition = fraction == nil ? .imageOnly : .imageLeading
         button.title = fraction.map { " \(Int($0 * 100))%" } ?? ""
