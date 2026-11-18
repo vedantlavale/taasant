@@ -379,7 +379,11 @@ final class Model: ObservableObject {
         // A path can hold an apostrophe, as in /Applications/Bob's Apps/.
         let quoted = "'" + CLI.binary.path.replacingOccurrences(of: "'", with: "'\\''") + "'"
         let command = configured ? "\(quoted) setup" : quoted
-        try? "#!/bin/sh\nexec \(command)\n".write(to: script, atomically: true, encoding: .utf8)
+        // Terminal does not inherit this app's environment, and setup must write where the app reads.
+        let env = ["TAAS_CONFIG", "TAAS_INDEX"].compactMap { name in
+            ProcessInfo.processInfo.environment[name].map { "export \(name)='" + $0.replacingOccurrences(of: "'", with: "'\\''") + "'\n" }
+        }.joined()
+        try? "#!/bin/sh\n\(env)exec \(command)\n".write(to: script, atomically: true, encoding: .utf8)
         try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path)
         NSWorkspace.shared.open(script)
     }
