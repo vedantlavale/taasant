@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -54,23 +55,59 @@ type Store struct {
 	order  []string
 }
 
+// MaxSize is the biggest file one object can hold.
+const MaxSize = int64(chunkSize) * maxParts
+
 func New(endpoint, region, bucket, accessKey, secretKey string) *Store {
 	return &Store{
 		Endpoint: endpoint, Region: region, Bucket: bucket,
 		AccessKey: accessKey, SecretKey: secretKey,
 		Workers:   3,
-		Client:    http.DefaultClient,
+		Client:    &http.Client{Transport: transport()},
 		chunkSize: chunkSize,
 	}
 }
 
-// Check tries the bucket with a small object, so a wrong key or a missing
-// bucket is found when someone sets up, not at their first upload.
+// transport gives up on a server that does not answer. The default client
+// waits for ever, so a Wi-Fi that dropped would hang an upload until Ctrl-C.
+func transport() *http.Transport {
+	return &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           (&net.Dialer{Timeout: 15 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
+		TLSHandshakeTimeout:   15 * time.Second,
+		ResponseHeaderTimeout: 90 * time.Second,
+		IdleConnTimeout:       90 * time.Second,
+		MaxIdleConnsPerHost:   8,
+		ForceAttemptHTTP2:     true,
+	}
+}
+
+// Check tries everything taasant will do with the bucket: write, read part of
+// an object, start and give up a multipart upload, and delete. A wrong key, a
+// missing bucket or a key that may only write is found when someone sets up,
+// not at their first download.
 func (s *Store) Check(ctx context.Context) error {
 	name := newName()
 	res, err := s.do(ctx, request{method: http.MethodPut, object: name, body: []byte("taasant")})
 	if err != nil {
 		return err
+	}
+	res.Body.Close()
+	defer s.Delete(ctx, nil, name, nil)
+
+	if res, err = s.do(ctx, request{method: http.MethodGet, object: name, header: map[string]string{"Range": "bytes=0-3"}}); err != nil {
+		return fmt.Errorf("the bucket takes files but will not give them back: %w", err)
+	}
+	res.Body.Close()
+
+	trial := newName()
+	upload, err := s.startUpload(ctx, trial)
+	if err != nil {
+		return fmt.Errorf("the bucket does not allow the multipart uploads that big files need: %w", err)
+	}
+	// Not abortUpload, which does not say if it worked.
+	if res, err = s.do(ctx, request{method: http.MethodDelete, object: trial, query: url.Values{"uploadId": {upload}}}); err != nil {
+		return fmt.Errorf("the bucket does not allow giving up a multipart upload: %w", err)
 	}
 	res.Body.Close()
 	return s.Delete(ctx, nil, name, nil)
@@ -322,6 +359,12 @@ func (s *Store) finishUpload(ctx context.Context, name, uploadID string, etags [
 	}
 	res, err := s.do(ctx, request{method: http.MethodPost, object: name, query: url.Values{"uploadId": {uploadID}}, body: data})
 	if err != nil {
+		// A completion is not safe to repeat: if the answer was lost, the first
+		// try made the object, and the repeat is told the upload is gone. The
+		// name is random, so an object under it can only be that one.
+		if s.exists(ctx, name) {
+			return nil
+		}
 		return err
 	}
 	defer res.Body.Close()
@@ -335,6 +378,16 @@ func (s *Store) finishUpload(ctx context.Context, name, uploadID string, etags [
 		return fmt.Errorf("s3 finishing the upload: %s: %s", answer.Code, answer.Message)
 	}
 	return nil
+}
+
+// exists says whether an object is in the bucket.
+func (s *Store) exists(ctx context.Context, name string) bool {
+	res, err := s.do(ctx, request{method: http.MethodHead, object: name})
+	if err != nil {
+		return false
+	}
+	res.Body.Close()
+	return true
 }
 
 // abortUpload does not use the context of the upload, which is probably

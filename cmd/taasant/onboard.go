@@ -52,6 +52,14 @@ func isURL(answer string) string {
 	return ""
 }
 
+// isBucket catches a name no bucket has, before it is tried.
+func isBucket(answer string) string {
+	if !bucketName.MatchString(answer) {
+		return "A bucket name is 3 to 63 lowercase letters, numbers, dots and dashes."
+	}
+	return ""
+}
+
 // isAccountID catches what people paste by mistake, such as the whole
 // address of the bucket.
 func isAccountID(answer string) string {
@@ -66,8 +74,8 @@ var providers = []provider{
 	{
 		name: "r2", label: "Cloudflare R2", about: "paid, no fee for downloads",
 		fields: []field{
-			{"Account ID", "Cloudflare dashboard, R2 Object Storage: it is on the right", false, isAccountID},
-			{"Bucket name", "the bucket you made in R2", false, nil},
+			{"Account ID", "Cloudflare dashboard, R2 Object Storage: it is on the right. For a bucket in the EU, choose the last option instead", false, isAccountID},
+			{"Bucket name", "the bucket you made in R2", false, isBucket},
 			{"Access Key ID", "R2, Manage API tokens: make a token that can read and write objects", false, nil},
 			{"Secret Access Key", "shown once, together with the Access Key ID", true, nil},
 		},
@@ -79,7 +87,7 @@ var providers = []provider{
 		name: "s3", label: "Amazon S3", about: "paid",
 		fields: []field{
 			{"Region", "where the bucket is, such as eu-west-1", false, nil},
-			{"Bucket name", "the bucket you made in S3", false, nil},
+			{"Bucket name", "the bucket you made in S3", false, isBucket},
 			{"Access Key ID", "IAM user with read and write access to that bucket", false, nil},
 			{"Secret Access Key", "shown once, together with the Access Key ID", true, nil},
 		},
@@ -88,10 +96,10 @@ var providers = []provider{
 		},
 	},
 	{
-		name: "minio", label: "MinIO", about: "your own server, or any other S3 service",
+		name: "minio", label: "MinIO or other S3", about: "your own server, or any service with an S3 address",
 		fields: []field{
 			{"Server address", "such as http://localhost:9000", false, isURL},
-			{"Bucket name", "the bucket you made on the server", false, nil},
+			{"Bucket name", "the bucket you made on the server", false, isBucket},
 			{"Access Key", "the user name of the server", false, nil},
 			{"Secret Key", "the password of the server", true, nil},
 		},
@@ -117,6 +125,7 @@ type onboard struct {
 	again    bool     // setup was run for a place to add, not for the first start
 	token    string   // the bot token, until it is saved with the chat
 	chatID   int64
+	place    string // what the place that was set up is called
 	bot      string // the bot's username
 	chat     string // the name of the chat that was found
 	search   int    // counts the searches for a chat, to tell an old answer from a new one
@@ -262,7 +271,8 @@ func (o onboard) pressed(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case key == "esc":
 			o.step, o.choice, o.input = askBackend, o.provider, ""
 		case key == "enter" && strings.TrimSpace(o.input) != "":
-			o.token, o.waiting = strings.TrimSpace(o.input), true
+			// Another bot hears of other updates, so the search starts over.
+			o.token, o.heard, o.waiting = strings.TrimSpace(o.input), -1, true
 			store := o.store()
 			return o, func() tea.Msg {
 				name, err := store.Me(context.Background())
@@ -333,7 +343,7 @@ func (o onboard) pressed(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		o.choice = move(o.choice, key, 2)
 		if key == "enter" {
 			if o.choice == 0 {
-				o.conf.Default = providers[o.provider].name
+				o.conf.Default = o.place
 			}
 			return o.save()
 		}
@@ -397,8 +407,15 @@ func (o onboard) target() target {
 // finish adds the place that was set up. It becomes the default, unless
 // there already was one and the person says to keep it.
 func (o onboard) finish() (tea.Model, tea.Cmd) {
-	name := providers[o.provider].name
-	o.conf.set(name, o.target())
+	name, t := providers[o.provider].name, o.target()
+	// Setting up a place that exists already replaces it, which is how keys
+	// are fixed. But a different bucket or bot is another place: files are
+	// stored in the old one, and would become unreachable.
+	if old, found := o.conf.Backends[name]; found && !old.sameAs(t) {
+		name = freeName(o.conf.Backends, name)
+	}
+	o.place = name
+	o.conf.set(name, t)
 	if o.again && o.conf.Default != name {
 		o.step, o.choice = askDefault, 0
 		return o, nil
@@ -527,7 +544,7 @@ func (o onboard) View() string {
 			"Should new files go there unless you say otherwise?",
 			"",
 			option(0, "Yes", "use "+name+" from now on"),
-			option(1, "No", "keep "+o.conf.Default+", and pick "+providers[o.provider].name+" with --to"),
+			option(1, "No", "keep "+o.conf.Default+", and pick "+o.place+" with --to"),
 		}
 		keys = "↑↓  |  Enter"
 	case ready:

@@ -193,9 +193,9 @@ func TestCheck(t *testing.T) {
 		{telegramConfig("TOKEN", -100, ""), "64 hex characters"},
 		{telegramConfig("TOKEN", -100, "abc"), "64 hex characters"},
 		{telegramConfig("TOKEN", -100, key), ""},
-		{config{Key: key, Default: "r2", Backends: map[string]target{"r2": {Type: "s3", Endpoint: "https://x", Region: "auto", Bucket: "b", AccessKey: "a"}}}, "no secret key"},
-		{config{Key: key, Default: "r2", Backends: map[string]target{"r2": {Type: "s3", Endpoint: "https://x", Region: "auto", Bucket: "b", AccessKey: "a", SecretKey: "s"}}}, ""},
-		{config{Key: key, Default: "r2", Backends: map[string]target{"r2": {Type: "s3", Endpoint: "x.r2.cloudflarestorage.com", Region: "auto", Bucket: "b", AccessKey: "a", SecretKey: "s"}}}, "must start with https://"},
+		{config{Key: key, Default: "r2", Backends: map[string]target{"r2": {Type: "s3", Endpoint: "https://x", Region: "auto", Bucket: "bucket", AccessKey: "a"}}}, "no secret key"},
+		{config{Key: key, Default: "r2", Backends: map[string]target{"r2": {Type: "s3", Endpoint: "https://x", Region: "auto", Bucket: "bucket", AccessKey: "a", SecretKey: "s"}}}, ""},
+		{config{Key: key, Default: "r2", Backends: map[string]target{"r2": {Type: "s3", Endpoint: "x.r2.cloudflarestorage.com", Region: "auto", Bucket: "bucket", AccessKey: "a", SecretKey: "s"}}}, "must start with https://"},
 		{config{Key: key, Default: "nope", Backends: map[string]target{"r2": {Type: "s3"}}}, "nowhere to store"},
 		{config{Key: key, Default: "x", Backends: map[string]target{"x": {Type: "ftp"}}}, "not a kind of storage"},
 	}

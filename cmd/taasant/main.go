@@ -16,6 +16,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/vedantlavale/taasant/s3store"
 )
 
 const usage = `usage:
@@ -25,7 +27,7 @@ const usage = `usage:
   taasant upload [--to <place>] <file>
   taasant list [search]
   taasant download [--to <place>] <name or id> [output-file]
-  taasant delete <name or id>
+  taasant delete [--to <place>] <name or id>
   taasant mount           show the files as a drive in Finder
   taasant autostart [off] show the drive at every login, or stop doing that
   taasant update          get the newest version
@@ -75,7 +77,7 @@ func run(args []string) error {
 	args = slices.DeleteFunc(slices.Clone(args), func(a string) bool { return a == "--json" })
 	to := ""
 	if i := slices.Index(args, "--to"); i >= 0 {
-		if (command != "upload" && command != "download") || i+1 == len(args) {
+		if (command != "upload" && command != "download" && command != "delete") || i+1 == len(args) {
 			return errUsage
 		}
 		to = args[i+1]
@@ -167,13 +169,8 @@ func run(args []string) error {
 		if err != nil {
 			return err
 		}
-		if e.Name == "" && e.Backend == "" {
-			// An ID that is not in the index, such as the backup of it,
-			// has no place written down. --to says which.
-			e.Backend = to
-			if to == "" && !strings.Contains(e.ID, ":") {
-				return errors.New("this ID is not in the index, so say which place it is in with --to <place>")
-			}
+		if e, err = placed(e, to); err != nil {
+			return err
 		}
 		output := e.Name
 		if len(args) == 2 {
@@ -198,6 +195,9 @@ func run(args []string) error {
 
 	default:
 		e, err := find(entries, args[0])
+		if err == nil {
+			e, err = placed(e, to)
+		}
 		if err != nil {
 			return err
 		}
@@ -219,6 +219,20 @@ func run(args []string) error {
 		}
 		return backupIndex(ctx, v, indexFile)
 	}
+}
+
+// placed says where an ID that is not in the index is stored. Such an ID has
+// no place written down, as the backup of the index has not, and --to says
+// which. Telegram's IDs are recognisable, so they need no --to.
+func placed(e entry, to string) (entry, error) {
+	if e.Name != "" || e.Backend != "" {
+		return e, nil
+	}
+	if to == "" && !strings.Contains(e.ID, ":") {
+		return e, errors.New("this ID is not in the index, so say which place it is in with --to <place>")
+	}
+	e.Backend = to
+	return e, nil
 }
 
 // connect opens the places files can go, out of the settings.
@@ -269,6 +283,13 @@ func addFile(ctx context.Context, v *vault, to, indexFile, path string, report f
 	if info.IsDir() {
 		return entry{}, fmt.Errorf("%s is a folder, upload one file at a time", path)
 	}
+	// Anything else, a pipe or a device, has no size to state or to count on.
+	if !info.Mode().IsRegular() {
+		return entry{}, fmt.Errorf("%s is not an ordinary file", path)
+	}
+	if v.kinds[cmp.Or(to, v.def)] == "s3" && info.Size() > s3store.MaxSize {
+		return entry{}, fmt.Errorf("%s is %s, more than one object in a bucket can hold (%s)", path, formatSize(info.Size()), formatSize(s3store.MaxSize))
+	}
 
 	var sent int64
 	report(0, info.Size())
@@ -279,7 +300,9 @@ func addFile(ctx context.Context, v *vault, to, indexFile, path string, report f
 	if err != nil {
 		return entry{}, err
 	}
-	added := entry{Name: filepath.Base(path), ID: id, Backend: cmp.Or(to, v.def), Size: info.Size(), Uploaded: time.Now()}
+	// What was sent, not what the file was said to be: it may have changed
+	// while it went, and a wrong size would break reading it from the drive.
+	added := entry{Name: filepath.Base(path), ID: id, Backend: cmp.Or(to, v.def), Size: sent, Uploaded: time.Now()}
 
 	unlock, err := lockIndex(indexFile)
 	if err != nil {
@@ -324,9 +347,9 @@ func download(ctx context.Context, v *vault, e entry, output string, report func
 // removeFile takes a file off the drive and out of the index. Telegram refuses
 // to delete messages older than 48 hours, but the file still goes: its
 // messages stay in the chat, encrypted and unknown to anyone without the key.
-// The note says so. A bucket that could not delete is different: an object
-// left there is paid for and nobody can see it, so the file stays in the index
-// for another try.
+// The note says so. Any other failure, and every failure of a bucket, keeps
+// the file in the index: an object left in a bucket is paid for and nobody
+// can see it, so it must stay listed for another try.
 func removeFile(ctx context.Context, v *vault, e entry, indexFile string, report func(done, total int64)) (string, error) {
 	store, err := v.get(e.where())
 	if err != nil {
@@ -338,14 +361,11 @@ func removeFile(ctx context.Context, v *vault, e entry, indexFile string, report
 			report(int64(done), int64(total))
 		}
 	}); err != nil {
-		if v.kinds[e.where()] != "telegram" {
+		if !deleteIsFinal(v.kinds[e.where()], err) {
 			return "", err
 		}
-		note = "The messages of " + cmp.Or(e.Name, e.ID) + " are still in the chat. "
-		if strings.Contains(err.Error(), "can't be deleted for everyone") {
-			note += "Telegram only lets a bot delete messages from the last 48 hours."
-		} else {
-			note += err.Error()
+		if !strings.Contains(err.Error(), "not found") {
+			note = "The messages of " + cmp.Or(e.Name, e.ID) + " are still in the chat. Telegram only lets a bot delete messages from the last 48 hours."
 		}
 	}
 	unlock, err := lockIndex(indexFile)
@@ -359,6 +379,19 @@ func removeFile(ctx context.Context, v *vault, e entry, indexFile string, report
 	}
 	entries = slices.DeleteFunc(entries, func(other entry) bool { return other.ID == e.ID })
 	return note, saveIndex(indexFile, entries)
+}
+
+// deleteIsFinal says whether a failed delete is one that trying again cannot
+// fix, so the file may leave the index. Telegram refuses to delete messages
+// older than 48 hours, or ones that are gone already. Any other failure, such
+// as no connection or a refused key, says nothing about the file, and the
+// file must stay listed so it can be deleted again.
+func deleteIsFinal(kind string, err error) bool {
+	if kind != "telegram" {
+		return false
+	}
+	text := err.Error()
+	return strings.Contains(text, "can't be deleted for everyone") || strings.Contains(text, "message to delete not found")
 }
 
 // backupIndex stores an encrypted copy of the index in the default place and

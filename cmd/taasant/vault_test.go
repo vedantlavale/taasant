@@ -24,7 +24,7 @@ func TestVaultGet(t *testing.T) {
 			"telegram": {Type: "telegram", Token: "TOKEN", ChatID: -100},
 			"r2":       {Type: "telegram", Token: "OTHER", ChatID: -200},
 			"broken":   {Type: "telegram"},
-			"minio":    {Type: "s3", Endpoint: "http://localhost:9000", Region: "us-east-1", Bucket: "b", AccessKey: "a", SecretKey: "s"},
+			"minio":    {Type: "s3", Endpoint: "http://localhost:9000", Region: "us-east-1", Bucket: "bucket", AccessKey: "a", SecretKey: "s"},
 		},
 	})
 	def, err := v.get("")

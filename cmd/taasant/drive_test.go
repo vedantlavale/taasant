@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vedantlavale/taasant/s3store"
 	"github.com/vedantlavale/taasant/tgstore"
 )
 
@@ -488,5 +489,50 @@ func TestDriveBodyFails(t *testing.T) {
 				t.Error("a broken copy left an empty file on the drive")
 			}
 		})
+	}
+}
+
+// A web page can reach any localhost name, so the drive must turn away what a
+// browser sends, and still answer what Finder sends.
+func TestDriveRefusesWebPages(t *testing.T) {
+	td := newTestDrive(t)
+	for _, header := range [][2]string{{"Origin", "https://evil.example"}, {"Sec-Fetch-Site", "cross-site"}} {
+		req, _ := http.NewRequest("GET", td.server.URL+"/taasant/", nil)
+		req.Host = testHost
+		req.Header.Set(header[0], header[1])
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res.Body.Close()
+		if res.StatusCode != http.StatusForbidden {
+			t.Errorf("a request with %s got %d, want 403", header[0], res.StatusCode)
+		}
+	}
+	if status, _ := td.do("GET", "", ""); status == http.StatusForbidden {
+		t.Error("Finder's own request was turned away")
+	}
+}
+
+// A file that a bucket could not delete must not vanish from the list: it is
+// still there, and billed.
+func TestDriveListsAgainWhatABucketCouldNotDelete(t *testing.T) {
+	td := newTestDrive(t)
+	s3 := fakeBucket(t)
+	v := td.d.vault
+	v.backends["minio"], v.kinds["minio"] = s3store.New(s3.URL, "us-east-1", "files", "GOOD", "SECRET"), "s3"
+	file := filepath.Join(t.TempDir(), "kept.txt")
+	os.WriteFile(file, []byte("hello"), 0o644)
+	if _, err := addFile(context.Background(), v, "minio", td.d.indexFile, file, func(done, total int64) {}); err != nil {
+		t.Fatal(err)
+	}
+	// The same bucket with keys it refuses.
+	v.backends["minio"] = s3store.New(s3.URL, "us-east-1", "files", "BAD", "SECRET")
+
+	if status, _ := td.do("DELETE", "kept.txt", ""); status >= 300 {
+		t.Fatalf("DELETE answered %d", status)
+	}
+	if td.names() != "kept.txt" {
+		t.Errorf("the index has %q after a delete that the bucket refused, want kept.txt", td.names())
 	}
 }

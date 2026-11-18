@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -39,7 +40,33 @@ type target struct {
 	Bucket    string `json:"bucket,omitempty"`
 	AccessKey string `json:"access_key,omitempty"`
 	SecretKey string `json:"secret_key,omitempty"`
-	PathStyle bool   `json:"path_style,omitempty"`
+}
+
+// bucketName is what S3 allows for a bucket: it also keeps a name from
+// breaking the address it ends up in.
+var bucketName = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$`)
+
+// sameAs says whether two targets are the same place, with only the keys, if
+// anything, being new.
+func (t target) sameAs(other target) bool {
+	if t.Type == "telegram" {
+		return t.Token == other.Token && t.ChatID == other.ChatID
+	}
+	return t.Endpoint == other.Endpoint && t.Bucket == other.Bucket
+}
+
+// freeName is name, or name-2, name-3, until no place has it.
+func freeName(taken map[string]target, name string) string {
+	for n := 2; ; n++ {
+		if candidate := fmt.Sprintf("%s-%d", name, n); !hasPlace(taken, candidate) {
+			return candidate
+		}
+	}
+}
+
+func hasPlace(taken map[string]target, name string) bool {
+	_, found := taken[name]
+	return found
 }
 
 // migrate moves a bot and a chat from an old settings file into a backend.
@@ -102,7 +129,21 @@ func writeFile(path string, data []byte) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
-	if err := os.WriteFile(path+".tmp", data, 0o600); err != nil {
+	// Synced before the rename, so that a crash leaves the old file or the
+	// new one and never an empty or half-written one under the real name.
+	f, err := os.OpenFile(path+".tmp", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
+		return err
+	}
+	_, err = f.Write(data)
+	if err == nil {
+		err = f.Sync()
+	}
+	if closed := f.Close(); err == nil {
+		err = closed
+	}
+	if err != nil {
+		os.Remove(path + ".tmp")
 		return err
 	}
 	return os.Rename(path+".tmp", path)
@@ -180,6 +221,9 @@ func (t target) check() error {
 	case "s3":
 		if !strings.HasPrefix(t.Endpoint, "https://") && !strings.HasPrefix(t.Endpoint, "http://") {
 			return errors.New("the endpoint of the storage must start with https://")
+		}
+		if !bucketName.MatchString(t.Bucket) {
+			return fmt.Errorf("%q is not a name a bucket can have", t.Bucket)
 		}
 		for _, f := range []struct{ name, value string }{
 			{"endpoint", t.Endpoint}, {"region", t.Region}, {"bucket", t.Bucket},

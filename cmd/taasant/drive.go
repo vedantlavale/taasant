@@ -109,6 +109,13 @@ func (d *drive) handler(host string) http.Handler {
 			http.Error(w, "the taasant drive only answers Finder on this computer", http.StatusForbidden)
 			return
 		}
+		// Finder does not send these. A web page in a browser always does, and
+		// localhost names are open to any page, so a request that has them
+		// is a page trying to reach the drive.
+		if r.Header.Get("Origin") != "" || r.Header.Get("Sec-Fetch-Site") != "" {
+			http.Error(w, "the taasant drive does not answer web pages", http.StatusForbidden)
+			return
+		}
 		if r.Method == http.MethodPut {
 			body := &observedBody{ReadCloser: r.Body}
 			r.Body = body
@@ -476,9 +483,20 @@ func (d *drive) discard(e entry) {
 	if err == nil {
 		err = store.Delete(context.Background(), d.vault.key, e.ID, nil)
 	}
-	if err != nil {
-		d.note(fmt.Sprintf("%s is still stored in %s: %v", e.Name, e.where(), err))
+	if err == nil {
+		return
 	}
+	if deleteIsFinal(d.vault.kinds[e.where()], err) {
+		d.note(fmt.Sprintf("%s is still stored in %s: %v", e.Name, e.where(), err))
+		return
+	}
+	// The file is off the drive, but a place that could not delete it still
+	// holds it, and bills for it. Listing it again keeps it findable, so it can
+	// be deleted once the place answers.
+	d.mu.Lock()
+	d.update(func(entries []entry) []entry { return append(entries, e) })
+	d.mu.Unlock()
+	d.note(fmt.Sprintf("%s could not be deleted from %s, so it is listed again: %v", e.Name, e.where(), err))
 }
 
 // Rename moves a file, or a folder with everything inside it. Nothing is

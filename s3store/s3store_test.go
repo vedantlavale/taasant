@@ -31,6 +31,10 @@ type fakeS3 struct {
 	fail func(r *http.Request) int
 	// requests counts what arrived, ranges those that asked for a range.
 	requests, ranges int
+	// loseCompleteAnswer makes the next CompleteMultipartUpload happen, and
+	// then hangs up without answering.
+	loseCompleteAnswer bool
+	started            int // uploads begun, for their IDs
 }
 
 func newFake(t *testing.T) (*Store, *fakeS3) {
@@ -72,7 +76,8 @@ func (f *fakeS3) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	name, query := strings.TrimPrefix(r.URL.Path, "/bucket/"), r.URL.Query()
 	switch {
 	case r.Method == "POST" && query.Has("uploads"):
-		id := "upload-" + strconv.Itoa(len(f.uploads)+1)
+		f.started++
+		id := "upload-" + strconv.Itoa(f.started)
 		f.uploads[id] = map[int][]byte{}
 		fmt.Fprintf(w, "<InitiateMultipartUploadResult><UploadId>%s</UploadId></InitiateMultipartUploadResult>", id)
 
@@ -108,6 +113,12 @@ func (f *fakeS3) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		f.objects[name] = whole
 		delete(f.uploads, query.Get("uploadId"))
+		if f.loseCompleteAnswer {
+			f.loseCompleteAnswer = false
+			conn, _, _ := w.(http.Hijacker).Hijack()
+			conn.Close()
+			return
+		}
 		io.WriteString(w, "<CompleteMultipartUploadResult></CompleteMultipartUploadResult>")
 
 	case r.Method == "DELETE" && query.Has("uploadId"):
@@ -120,6 +131,11 @@ func (f *fakeS3) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case r.Method == "DELETE":
 		delete(f.objects, name)
 		w.WriteHeader(204)
+
+	case r.Method == "HEAD":
+		if _, found := f.objects[name]; !found {
+			w.WriteHeader(404)
+		}
 
 	case r.Method == "GET":
 		data, found := f.objects[name]
@@ -438,5 +454,71 @@ func TestReadersShare(t *testing.T) {
 	got, err := io.ReadAll(store.Open(context.Background(), key, id, int64(len(content))))
 	if err != nil || !bytes.Equal(got, content) || fake.ranges != 4 {
 		t.Fatalf("a later reader made %d more downloads, or %v", fake.ranges-4, err)
+	}
+}
+
+// The answer to the completion of an upload can be lost although the object
+// was made. Repeating the completion is refused, and that must not turn a
+// good upload into a failed one that is cleaned away.
+func TestLostAnswerToTheCompletion(t *testing.T) {
+	store, fake := newFake(t)
+	key, content := randomBytes(32), randomBytes(3*testChunk)
+	fake.loseCompleteAnswer = true
+	id, err := store.Upload(context.Background(), key, bytes.NewReader(content), nil)
+	if err != nil {
+		t.Fatalf("a lost answer failed the upload: %v", err)
+	}
+	var got bytes.Buffer
+	if err := store.Download(context.Background(), key, id, &got, nil); err != nil || !bytes.Equal(got.Bytes(), content) {
+		t.Errorf("the object is not whole, or %v", err)
+	}
+}
+
+// What one key fetched must not come out for another.
+func TestChunksOfOneKeyAreNotGivenToAnother(t *testing.T) {
+	store, _ := newFake(t)
+	key, content := randomBytes(32), randomBytes(2*testChunk)
+	id, err := store.Upload(context.Background(), key, bytes.NewReader(content), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := io.ReadAll(store.Open(context.Background(), key, id, int64(len(content)))); err != nil || !bytes.Equal(got, content) {
+		t.Fatalf("the right key read other bytes, or %v", err)
+	}
+	if got, err := io.ReadAll(store.Open(context.Background(), randomBytes(32), id, int64(len(content)))); err == nil {
+		t.Errorf("another key read %d bytes of what the first one had fetched", len(got))
+	}
+}
+
+// A key that can only write must be found at setup, not when a file is wanted.
+func TestCheckFindsWhatTheKeyCannotDo(t *testing.T) {
+	for name, test := range map[string]struct {
+		refuse func(r *http.Request) bool
+		want   string
+	}{
+		"read":      {func(r *http.Request) bool { return r.Method == "GET" }, "give them back"},
+		"multipart": {func(r *http.Request) bool { return r.URL.Query().Has("uploads") }, "multipart"},
+		"abort":     {func(r *http.Request) bool { return r.Method == "DELETE" && r.URL.Query().Has("uploadId") }, "giving up"},
+	} {
+		store, fake := newFake(t)
+		fake.fail = func(r *http.Request) int {
+			if test.refuse(r) {
+				return 403
+			}
+			return 0
+		}
+		err := store.Check(context.Background())
+		if err == nil || !strings.Contains(err.Error(), test.want) {
+			t.Errorf("a key that cannot %s: Check gave %v, want it to say %q", name, err, test.want)
+		}
+		if len(fake.objects) != 0 {
+			t.Errorf("a key that cannot %s: Check left %d objects behind", name, len(fake.objects))
+		}
+	}
+}
+
+func TestTheLargestFile(t *testing.T) {
+	if MaxSize != 16<<20*10000 {
+		t.Errorf("MaxSize is %d", MaxSize)
 	}
 }

@@ -24,6 +24,9 @@ type fakeTelegram struct {
 	files        map[string][]byte
 	sent         int
 	refuseDelete bool
+	// brokenDelete makes every delete fail in a way that has nothing to do
+	// with the age of the message, as a wrong token does.
+	brokenDelete bool
 }
 
 func (f *fakeTelegram) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -43,6 +46,11 @@ func (f *fakeTelegram) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		f.files[id] = data
 		fmt.Fprintf(w, `{"ok":true,"result":{"message_id":%d,"document":{"file_id":%q}}}`, f.sent, id)
 	case "/botTOKEN/deleteMessage":
+		if f.brokenDelete {
+			w.WriteHeader(http.StatusUnauthorized)
+			fmt.Fprint(w, `{"ok":false,"description":"Unauthorized"}`)
+			return
+		}
 		if f.refuseDelete {
 			w.WriteHeader(http.StatusBadRequest)
 			fmt.Fprint(w, `{"ok":false,"description":"message can't be deleted for everyone"}`)

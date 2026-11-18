@@ -15,6 +15,12 @@ import (
 
 const maxAttempts = 4
 
+// attemptTimeout is how long one request may take. A chunk is 16 MiB, so this
+// allows a slow line, and no more: a connection that has gone quiet in the
+// middle of a body would otherwise never give up. A download of a whole
+// object has no limit, as how long it takes depends on how big it is.
+const attemptTimeout = 10 * time.Minute
+
 // retryWait is the pause before trying again after a broken connection.
 var retryWait = 500 * time.Millisecond
 
@@ -43,8 +49,13 @@ func (s *Store) do(ctx context.Context, r request) (*http.Response, error) {
 		if r.sent != nil {
 			reader = &countingReader{reader: reader, total: len(r.body), report: r.sent}
 		}
-		req, err := http.NewRequestWithContext(ctx, r.method, target, reader)
+		attemptCtx, cancel := ctx, context.CancelFunc(func() {})
+		if r.method != http.MethodGet || r.header["Range"] != "" {
+			attemptCtx, cancel = context.WithTimeout(ctx, attemptTimeout)
+		}
+		req, err := http.NewRequestWithContext(attemptCtx, r.method, target, reader)
 		if err != nil {
+			cancel()
 			return nil, err
 		}
 		req.URL.RawQuery = r.query.Encode()
@@ -56,11 +67,14 @@ func (s *Store) do(ctx context.Context, r request) (*http.Response, error) {
 
 		res, err := s.Client.Do(req)
 		if err == nil && res.StatusCode < 300 {
+			// The timeout must outlive the body that is still to be read.
+			res.Body = &cancelOnClose{ReadCloser: res.Body, cancel: cancel}
 			return res, nil
 		}
 		if err == nil {
 			err = readError(res)
 		}
+		cancel()
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
@@ -75,6 +89,17 @@ func (s *Store) do(ctx context.Context, r request) (*http.Response, error) {
 			return nil, ctx.Err()
 		}
 	}
+}
+
+// cancelOnClose ends a request's timeout once its body is closed.
+type cancelOnClose struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+}
+
+func (c *cancelOnClose) Close() error {
+	defer c.cancel()
+	return c.ReadCloser.Close()
 }
 
 // apiError is what S3 says when it refuses a request.

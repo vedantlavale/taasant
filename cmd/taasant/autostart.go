@@ -52,6 +52,10 @@ func agentPlist(program, log string) []byte {
 	var env bytes.Buffer
 	for _, name := range []string{"TAAS_CONFIG", "TAAS_INDEX"} {
 		if value := os.Getenv(name); value != "" {
+			// The job starts in /, so a relative path would mean another file.
+			if abs, err := filepath.Abs(value); err == nil {
+				value = abs
+			}
 			fmt.Fprintf(&env, "\t\t<key>%s</key>\n\t\t<string>%s</string>\n", name, text(value))
 		}
 	}

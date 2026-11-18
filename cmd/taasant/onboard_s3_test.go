@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -28,12 +29,18 @@ func fakeBucket(t *testing.T) *bucket {
 		}
 		b.mu.Lock()
 		defer b.mu.Unlock()
-		switch r.Method {
-		case http.MethodPut:
+		switch {
+		case r.Method == http.MethodPost && r.URL.Query().Has("uploads"):
+			fmt.Fprint(w, "<InitiateMultipartUploadResult><UploadId>u1</UploadId></InitiateMultipartUploadResult>")
+		case r.Method == http.MethodPut:
 			b.objects[r.URL.Path], _ = io.ReadAll(r.Body)
-		case http.MethodGet:
+		case r.Method == http.MethodHead:
+			if _, found := b.objects[r.URL.Path]; !found {
+				w.WriteHeader(http.StatusNotFound)
+			}
+		case r.Method == http.MethodGet:
 			w.Write(b.objects[r.URL.Path])
-		case http.MethodDelete:
+		case r.Method == http.MethodDelete:
 			delete(b.objects, r.URL.Path)
 			w.WriteHeader(http.StatusNoContent)
 		}
@@ -133,7 +140,7 @@ func TestOnboardAddsAPlace(t *testing.T) {
 
 		o = answer(o, minio...)
 		o = answer(o, server, "enter", "files", "enter", "GOOD", "enter", "hunter2", "enter")
-		if view := o.View(); o.step != askDefault || !strings.Contains(view, "MinIO works") {
+		if view := o.View(); o.step != askDefault || !strings.Contains(view, "MinIO or other S3 works") {
 			t.Fatalf("%s: the default was not asked about:\n%s", test.message, view)
 		}
 		o = answer(o, test.keys...)
@@ -170,5 +177,60 @@ func TestProviderTargets(t *testing.T) {
 		if isAccountID(wrong) == "" {
 			t.Errorf("%q was taken for an account ID", wrong)
 		}
+	}
+}
+
+// Setting up a place again fixes its keys. A different bucket is another
+// place, and must not take the name of the first: files are stored in it.
+func TestOnboardKeepsAPlaceThatHasOtherFiles(t *testing.T) {
+	key := strings.Repeat("ab", 32)
+	first, second := fakeBucket(t), fakeBucket(t)
+
+	setup := func(conf config, server *bucket, bucket string) config {
+		path := filepath.Join(t.TempDir(), "config.json")
+		o := onboard{path: path, heard: -1, again: true, conf: conf}
+		o = answer(o, minio...)
+		o = answer(o, server.URL, "enter", bucket, "enter", "GOOD", "enter", "hunter2", "enter")
+		if o.step == askDefault {
+			o = answer(o, "down", "enter")
+		}
+		saved, err := loadConfig(path)
+		if o.step != ready || err != nil {
+			t.Fatalf("step %d: %v\n%s", o.step, err, o.View())
+		}
+		return saved
+	}
+
+	conf := setup(telegramConfig("TOKEN", -100, key), first, "photos")
+	if _, found := conf.Backends["minio"]; !found {
+		t.Fatalf("the first place was not saved as minio: %+v", conf.Backends)
+	}
+	same := setup(conf, first, "photos")
+	if len(same.Backends) != 2 {
+		t.Errorf("the same bucket again made a third place: %+v", same.Backends)
+	}
+	other := setup(conf, second, "videos")
+	if len(other.Backends) != 3 || other.Backends["minio"].Bucket != "photos" || other.Backends["minio-2"].Bucket != "videos" {
+		t.Errorf("another bucket replaced the first one: %+v", other.Backends)
+	}
+}
+
+func TestBucketNames(t *testing.T) {
+	for _, good := range []string{"files", "my-files.2026", "abc", "0123456789"} {
+		if isBucket(good) != "" {
+			t.Errorf("%q was refused", good)
+		}
+	}
+	for _, bad := range []string{"", "ab", "Files", "my files", "a/b", "files?x=1", "-files", "files-", strings.Repeat("a", 64)} {
+		if isBucket(bad) == "" {
+			t.Errorf("%q was accepted", bad)
+		}
+	}
+}
+
+func TestUploadRefusesWhatItCannotSize(t *testing.T) {
+	td := newTestDrive(t)
+	if _, err := addFile(context.Background(), td.d.vault, "", td.d.indexFile, "/dev/null", func(done, total int64) {}); err == nil {
+		t.Error("a device was uploaded as a file")
 	}
 }
