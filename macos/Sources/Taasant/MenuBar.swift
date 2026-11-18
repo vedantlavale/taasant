@@ -17,7 +17,8 @@ final class MenuBar: NSObject, NSPopoverDelegate {
         popover.behavior = .transient
         popover.delegate = self
         popover.contentSize = NSSize(width: 400, height: 440)
-        popover.contentViewController = NSHostingController(rootView: PopoverView(model: model))
+        popover.appearance = NSAppearance(named: .darkAqua)
+        popover.contentViewController = GlassPopoverController(model: model)
 
         guard let button = item.button else { return }
         let target = DropTarget(frame: button.bounds)

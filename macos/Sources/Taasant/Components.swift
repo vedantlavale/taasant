@@ -18,6 +18,7 @@ extension View {
 // Transfers section without making the person change tabs to find it.
 struct ActivityStrip: View {
     @ObservedObject var model: Model
+    var glass = false
 
     var body: some View {
         if let activity = model.activity {
@@ -48,7 +49,7 @@ struct ActivityStrip: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(Brand.raised)
+            .background(glass ? Color.white.opacity(0.08) : Brand.raised)
         }
     }
 }

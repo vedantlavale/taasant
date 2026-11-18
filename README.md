@@ -214,7 +214,7 @@ A few things work differently from a normal disk:
 
 If you would rather click than type, there is a small Mac app: an icon in the menu bar and a window with your files. Download `Taasant.zip` from the [releases page](https://github.com/vedantlavale/taasant/releases/latest), unzip it and drag `Taasant.app` to Applications.
 
-- **The menu bar icon** shows whether the drive is in Finder, and connects or ejects it. **Start at login** brings the drive back every time you log in.
+- **The menu bar icon** shows whether the drive is in Finder, and connects or ejects it. The panel uses the macOS glass effect; the window stays dark with the site's ant. **Start at login** brings the drive back every time you log in.
 - **The window** (menu → Show files…) has four sections: Files, Transfers, Drive and Settings. Drop files on it to upload them. A delete asks for confirmation in a dialog, and files can be filtered by kind and sorted by date, name or size. The menu bar popover has the same sections in a compact form, with the file list, its filters, and a bar that follows an upload or a delete. While you copy files to the drive in Finder, the menu bar icon shows the percent that has reached Telegram. Open the app again from Finder or Spotlight if you cannot see the icon.
 - **The first time**, the window offers to set taasant up. That opens a terminal and asks the same questions as `taasant` does, because the bot token and the key are best pasted in there.
 
