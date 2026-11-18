@@ -29,6 +29,9 @@ struct PopoverView: View {
                 .background(glass ? Color.clear : Brand.canvas)
             }
         }
+        // Clear glass shows what is behind it as it is, so a dark layer keeps
+        // the light text readable over a white page too.
+        .background(glass ? Color.black.opacity(0.25) : Color.clear)
         .frame(width: 400, height: 440)
         .noticeAlert(model)
     }

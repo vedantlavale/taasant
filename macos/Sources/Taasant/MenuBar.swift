@@ -5,20 +5,17 @@ import SwiftUI
 // The menu bar icon is made by hand and not with MenuBarExtra: that one has no
 // way to take a drop on the icon, and its menu cannot hold a drop zone.
 @MainActor
-final class MenuBar: NSObject, NSPopoverDelegate {
+final class MenuBar: NSObject {
     static let shared = MenuBar()
 
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-    private let popover = NSPopover()
+    private var panel: GlassPanel!
     private var watching: AnyCancellable?
 
     func start() {
         let model = Model.shared
-        popover.behavior = .transient
-        popover.delegate = self
-        popover.contentSize = NSSize(width: 400, height: 440)
-        popover.appearance = NSAppearance(named: .darkAqua)
-        popover.contentViewController = GlassPopoverController(model: model)
+        panel = GlassPanel(model: model)
+        panel.onClose = { Model.shared.popoverOpen = false }
 
         guard let button = item.button else { return }
         let target = DropTarget(frame: button.bounds)
@@ -42,30 +39,28 @@ final class MenuBar: NSObject, NSPopoverDelegate {
         refresh()
     }
 
-    func toggle() { popover.isShown ? close() : show() }
+    func toggle() { panel.isVisible ? close() : show() }
 
     func show() {
-        guard !popover.isShown, let button = item.button else { return }
+        guard !panel.isVisible, let button = item.button else { return }
         let model = Model.shared
         model.popoverOpen = true
         Task { await model.reload() }
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         NSApp.activate(ignoringOtherApps: true)
+        panel.show(below: button)
     }
 
-    func close() { popover.performClose(nil) }
-
-    func popoverDidClose(_ notification: Notification) { Model.shared.popoverOpen = false }
+    func close() { panel.close() }
 
     // A panel would take the focus from the popover and close it.
     func pick() {
-        let panel = NSOpenPanel()
-        panel.allowsMultipleSelection = true
-        popover.behavior = .applicationDefined
+        let chooser = NSOpenPanel()
+        chooser.allowsMultipleSelection = true
+        panel.closesOnFocusLoss = false
         NSApp.activate(ignoringOtherApps: true)
-        let chose = panel.runModal() == .OK
-        popover.behavior = .transient
-        if chose { Model.shared.upload(panel.urls) }
+        let chose = chooser.runModal() == .OK
+        panel.closesOnFocusLoss = true
+        if chose { Model.shared.upload(chooser.urls) }
     }
 
     // The ant is the site's mark, drawn as a template so macOS colours it to
