@@ -25,6 +25,9 @@ type testDrive struct {
 	server *httptest.Server
 	// refuse makes the fake Telegram turn uploads down.
 	refuse atomic.Bool
+	// calls counts the requests that got as far as the drive. A client can
+	// break off before its request is handed over at all.
+	calls  atomic.Int32
 	alerts []string
 }
 
@@ -44,7 +47,10 @@ func newTestDrive(t *testing.T) *testDrive {
 
 	td.d = newDrive(store, make([]byte, 32), filepath.Join(t.TempDir(), "index.json"))
 	td.d.alert = func(text string) { td.alerts = append(td.alerts, text) }
-	td.server = httptest.NewServer(td.d.handler(testHost))
+	td.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		td.calls.Add(1)
+		td.d.handler(testHost).ServeHTTP(w, r)
+	}))
 	t.Cleanup(td.server.Close)
 	return td
 }
@@ -225,7 +231,9 @@ func TestDriveBrokenUpload(t *testing.T) {
 	if td.names() != "" {
 		t.Fatalf("the index has %q", td.names())
 	}
-	if len(td.alerts) != 1 || !strings.Contains(td.alerts[0], "big.bin was not saved") {
+	// Sometimes the client gives up before the request reaches the server.
+	// There is nothing for the drive to report in that case.
+	if td.calls.Load() > 0 && (len(td.alerts) != 1 || !strings.Contains(td.alerts[0], "big.bin was not saved")) {
 		t.Fatalf("the alerts are %q", td.alerts)
 	}
 }
@@ -373,5 +381,44 @@ func TestDriveLockLeftBehind(t *testing.T) {
 	}
 	if status, _ := td.do("DELETE", "notes.txt", ""); status >= 400 {
 		t.Fatalf("DELETE of a locked file answered %d", status)
+	}
+}
+
+// brokenBody sends what it has and then fails, like a copy whose connection
+// drops. Whether it sends anything at all used to change the outcome.
+type brokenBody struct {
+	bytes string
+	done  bool
+}
+
+func (b *brokenBody) Read(p []byte) (int, error) {
+	if b.done {
+		return 0, errors.New("the connection broke")
+	}
+	b.done = true
+	return copy(p, b.bytes), nil
+}
+
+func (b *brokenBody) Close() error { return nil }
+
+func TestDriveBodyFails(t *testing.T) {
+	for _, sent := range []string{"", "hello"} {
+		t.Run("sent="+sent, func(t *testing.T) {
+			td := newTestDrive(t)
+			req := httptest.NewRequest("PUT", "http://"+testHost+"/taasant/big.bin", nil)
+			req.Host = testHost
+			req.Body = &brokenBody{bytes: sent}
+			td.d.handler(testHost).ServeHTTP(httptest.NewRecorder(), req)
+
+			if len(td.alerts) != 1 || !strings.Contains(td.alerts[0], "big.bin was not saved") {
+				t.Fatalf("the alerts are %q", td.alerts)
+			}
+			if td.names() != "" {
+				t.Fatalf("the index has %q", td.names())
+			}
+			if _, left := td.d.local["big.bin"]; left {
+				t.Error("a broken copy left an empty file on the drive")
+			}
+		})
 	}
 }

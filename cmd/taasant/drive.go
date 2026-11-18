@@ -71,6 +71,24 @@ func newDrive(store *tgstore.Store, key []byte, indexFile string) *drive {
 // sizeKey is where a request's context keeps how big the file being sent is.
 type sizeKey struct{}
 
+// bodyKey is where a request's context keeps the reader the body was read
+// from. A copy that breaks off can fail before the drive sees a single byte,
+// and the request's own error does not always reach the handler in time.
+type bodyKey struct{}
+
+type observedBody struct {
+	io.ReadCloser
+	err error
+}
+
+func (b *observedBody) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	if err != nil && !errors.Is(err, io.EOF) {
+		b.err = err
+	}
+	return n, err
+}
+
 // handler answers Finder. Requests under any other host name are refused: a
 // web page can reach this computer under a name of its own, and must not get
 // at the files that way.
@@ -92,8 +110,14 @@ func (d *drive) handler(host string) http.Handler {
 			http.Error(w, "the taasant drive only answers Finder on this computer", http.StatusForbidden)
 			return
 		}
-		if r.Method == http.MethodPut && r.ContentLength > 0 {
-			r = r.WithContext(context.WithValue(r.Context(), sizeKey{}, r.ContentLength))
+		if r.Method == http.MethodPut {
+			body := &observedBody{ReadCloser: r.Body}
+			r.Body = body
+			ctx := context.WithValue(r.Context(), bodyKey{}, body)
+			if r.ContentLength > 0 {
+				ctx = context.WithValue(ctx, sizeKey{}, r.ContentLength)
+			}
+			r = r.WithContext(ctx)
 		}
 		if r.Method == http.MethodGet {
 			if err := d.reach(r); err != nil {
@@ -606,8 +630,24 @@ func (w *writing) Write(p []byte) (int, error) {
 	return n, err
 }
 
+// broken is why the copy stopped: the body could not be read, or the whole
+// request was cut off. The body's own error is remembered because the request
+// is not always cancelled before the file is closed.
+func (w *writing) broken() error {
+	if body, ok := w.ctx.Value(bodyKey{}).(*observedBody); ok && body.err != nil {
+		return body.err
+	}
+	return w.ctx.Err()
+}
+
 func (w *writing) Close() error {
 	if w.pipe == nil {
+		if !helper(w.name) {
+			if err := w.broken(); err != nil {
+				w.d.failed(w.name, err)
+				return err
+			}
+		}
 		w.d.mu.Lock()
 		w.d.local[w.name] = kept{w.kept, w.when}
 		w.d.mu.Unlock()
@@ -615,7 +655,7 @@ func (w *writing) Close() error {
 	}
 	// If Finder broke off, the upload fails here, and half a file is never
 	// taken for a whole one.
-	w.pipe.CloseWithError(w.ctx.Err())
+	w.pipe.CloseWithError(w.broken())
 	err := <-w.done
 	w.d.progress.end(w)
 	if err == nil {
