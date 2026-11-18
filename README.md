@@ -219,7 +219,7 @@ Uploads and downloads show a progress bar that moves as the bytes go out. If the
 
 ### A drive in Finder
 
-On a Mac, `taasant mount` puts your files in Finder's sidebar, under **Locations**:
+This is macOS only. On a Mac, `taasant mount` puts your files in Finder's sidebar, under **Locations**:
 
 ```console
 $ taasant mount
@@ -245,6 +245,8 @@ A few things work differently from a normal disk:
 - **Two files with one name.** `taasant upload` lets you store the same name twice. The drive shows the newer one. Delete or rename it there and the older one shows up.
 
 ### The Mac app
+
+**The Mac app and the drive in Finder work on macOS only.** On Linux and Windows, use the terminal program, which works everywhere. The app needs macOS 13 or newer (the glass look needs macOS 26, and older versions get a frosted one), on Apple silicon or Intel. Nothing else has to be installed, as the app has the `taasant` program inside it.
 
 If you would rather click than type, there is a small Mac app: an icon in the menu bar and a window with your files. Download `Taasant.zip` from the [releases page](https://github.com/vedantlavale/taasant/releases/latest), unzip it and drag `Taasant.app` to Applications.
 

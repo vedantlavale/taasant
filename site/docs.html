@@ -367,6 +367,7 @@
     <h6>Guides</h6>
     <a href="#usage" data-page="usage">Using taasant</a>
     <a href="#matching" data-page="matching">Finding files by name</a>
+    <a href="#mac" data-page="mac">Mac app and Finder drive</a>
     <h6>Reference</h6>
     <a href="#storage" data-page="storage">What ends up where</a>
     <a href="#limits" data-page="limits">Limits</a>
@@ -727,6 +728,45 @@ taasant update                     # get the newest version of taasant</pre></di
       </section>
 
       <!-- ================= STORAGE ================= -->
+      <section class="page" id="p-mac" data-title="Mac app and Finder drive" data-group="Guides">
+        <h1>Mac app and Finder drive</h1>
+        <p class="lead">On a Mac, taasant can also be an app in the menu bar and a drive in Finder. <strong>Both are for macOS only.</strong> On Linux and Windows, use the terminal program, which works everywhere.</p>
+
+        <h2 id="mac-needs">What you need</h2>
+        <ul>
+          <li>A Mac, Apple silicon or Intel, on macOS 13 or newer. The glass look needs macOS 26; older versions get a frosted look instead.</li>
+          <li>Nothing else. The app has the <code>taasant</code> program inside it, so you do not need to install it separately.</li>
+        </ul>
+
+        <h2 id="mac-install">Install the app</h2>
+        <ol>
+          <li>Download <code>Taasant.zip</code> from the <a href="https://github.com/vedantlavale/taasant/releases/latest">releases page</a> and unzip it.</li>
+          <li>Drag <code>Taasant.app</code> to your Applications folder and open it.</li>
+          <li>The first time macOS says it cannot verify the app, because it has no Apple developer certificate. Press <strong>Done</strong>, then open <strong>System Settings → Privacy &amp; Security</strong> and press <strong>Open Anyway</strong>. Or run this once:</li>
+        </ol>
+        <div class="code"><div class="bar"><span>bash</span></div>
+<pre data-lang="bash">xattr -dr com.apple.quarantine /Applications/Taasant.app</pre></div>
+        <p>The first time it opens, it offers to set taasant up. That opens a terminal with the same questions as <code>taasant</code>, because tokens and keys are best pasted there. <strong>Add a place</strong> in Settings runs <code>taasant setup</code> the same way.</p>
+
+        <h2 id="mac-menu-bar">The menu bar</h2>
+        <p>Drop files on the icon or on its panel to store them, watch them go, and save one of the last four files to Downloads. A button opens the window. The menu connects or ejects the drive, starts it at login, and quits. Open the app again from Finder or Spotlight if you cannot see the icon.</p>
+
+        <h2 id="mac-window">The window</h2>
+        <ul>
+          <li><strong>Files:</strong> search, filter by kind, sort, and Upload. The arrow beside Upload sends a file to a place other than the default. A tag shows where each file is once you have more than one place.</li>
+          <li><strong>Transfers:</strong> what is moving, with a button to cancel it.</li>
+          <li><strong>Drive:</strong> connect or eject the drive, and start it at login.</li>
+          <li><strong>Settings:</strong> your places, and a switch to keep file names out of the menu bar for a screen share.</li>
+        </ul>
+
+        <h2 id="mac-drive">The drive in Finder</h2>
+        <p>Your files show up in Finder's sidebar under <strong>Locations</strong>, as <code>taasant.localhost</code>. Drag files in to store them, drag them out or open them to get them back. Without the app, run <code>taasant mount</code>, or <code>taasant autostart</code> once to have it at every login and <code>taasant autostart off</code> to stop. Problems are written to <code>~/Library/Logs/taasant.log</code>.</p>
+        <p>The drive only answers Finder on your own computer. A copy into it finishes when the upload to your place finishes, which is after Finder says it is done, so watch the percent in the menu bar icon.</p>
+
+        <h2 id="mac-build">Build it yourself</h2>
+        <p>Run <code>macos/build.sh</code>. It needs Go and Swift (the command line tools are enough) and leaves <code>macos/dist/Taasant.app</code>.</p>
+      </section>
+
       <section class="page" id="p-storage" data-title="What ends up where" data-group="Reference">
         <h1>What ends up where</h1>
         <p class="lede">Your files live in Telegram. The list of what you uploaded lives on your computer.</p>
