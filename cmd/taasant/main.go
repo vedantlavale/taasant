@@ -16,16 +16,15 @@ import (
 	"slices"
 	"strings"
 	"time"
-
-	"github.com/vedantlavale/taasant/tgstore"
 )
 
 const usage = `usage:
   taasant                 open the menu
   taasant keygen
-  taasant upload <file>
+  taasant setup           add a place for the files, or fix one
+  taasant upload [--to <place>] <file>
   taasant list [search]
-  taasant download <name or id> [output-file]
+  taasant download [--to <place>] <name or id> [output-file]
   taasant delete <name or id>
   taasant mount           show the files as a drive in Finder
   taasant autostart [off] show the drive at every login, or stop doing that
@@ -74,6 +73,14 @@ func run(args []string) error {
 	command, args := args[0], args[1:]
 	asJSON := slices.Contains(args, "--json")
 	args = slices.DeleteFunc(slices.Clone(args), func(a string) bool { return a == "--json" })
+	to := ""
+	if i := slices.Index(args, "--to"); i >= 0 {
+		if (command != "upload" && command != "download") || i+1 == len(args) {
+			return errUsage
+		}
+		to = args[i+1]
+		args = slices.Delete(slices.Clone(args), i, i+2)
+	}
 
 	switch {
 	case command == "keygen" && len(args) == 0:
@@ -81,6 +88,13 @@ func run(args []string) error {
 		rand.Read(key)
 		fmt.Println(hex.EncodeToString(key))
 		return nil
+	case command == "setup" && len(args) == 0:
+		if !outTTY || !isTerminal(os.Stdin) {
+			return errors.New("setup asks questions, so it needs a terminal")
+		}
+		_, err := settings()
+		_, err = askQuestions(err == nil)
+		return err
 	case command == "help":
 		fmt.Println(usage)
 		return nil
@@ -123,7 +137,7 @@ func run(args []string) error {
 		return list(entries, args)
 	}
 
-	store, key, err := connect()
+	v, err := connect()
 	if err != nil {
 		return err
 	}
@@ -133,7 +147,7 @@ func run(args []string) error {
 
 	switch command {
 	case "upload":
-		added, err := addFile(ctx, store, key, indexFile, args[0], progressFor(filepath.Base(args[0]), asJSON))
+		added, err := addFile(ctx, v, to, indexFile, args[0], progressFor(filepath.Base(args[0]), asJSON))
 		clearProgress()
 		if err != nil {
 			return err
@@ -146,12 +160,20 @@ func run(args []string) error {
 		} else {
 			fmt.Println(added.ID)
 		}
-		return backupIndex(ctx, store, key, indexFile)
+		return backupIndex(ctx, v, indexFile)
 
 	case "download":
 		e, err := find(entries, args[0])
 		if err != nil {
 			return err
+		}
+		if e.Name == "" && e.Backend == "" {
+			// An ID that is not in the index, such as the backup of it,
+			// has no place written down. --to says which.
+			e.Backend = to
+			if to == "" && !strings.Contains(e.ID, ":") {
+				return errors.New("this ID is not in the index, so say which place it is in with --to <place>")
+			}
 		}
 		output := e.Name
 		if len(args) == 2 {
@@ -163,7 +185,7 @@ func run(args []string) error {
 		if output == "" {
 			return errors.New("this ID is not in the index, so give an output file name")
 		}
-		err = download(ctx, store, key, e, output, progressFor(output, asJSON))
+		err = download(ctx, v, e, output, progressFor(output, asJSON))
 		clearProgress()
 		if err != nil {
 			return err
@@ -179,7 +201,7 @@ func run(args []string) error {
 		if err != nil {
 			return err
 		}
-		note, err := removeFile(ctx, store, key, indexFile, e, progressFor(cmp.Or(e.Name, e.ID), asJSON))
+		note, err := removeFile(ctx, v, e, indexFile, progressFor(cmp.Or(e.Name, e.ID), asJSON))
 		if err != nil {
 			return err
 		}
@@ -195,18 +217,17 @@ func run(args []string) error {
 				fmt.Fprintln(os.Stderr, "note:", note)
 			}
 		}
-		return backupIndex(ctx, store, key, indexFile)
+		return backupIndex(ctx, v, indexFile)
 	}
 }
 
-// connect makes the store and the key out of the settings.
-func connect() (*tgstore.Store, []byte, error) {
+// connect opens the places files can go, out of the settings.
+func connect() (*vault, error) {
 	c, err := settings()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	key, _ := hex.DecodeString(c.Key)
-	return tgstore.New(c.Token, c.ChatID), key, nil
+	return newVault(c), nil
 }
 
 func list(entries []entry, args []string) error {
@@ -231,7 +252,11 @@ func list(entries []entry, args []string) error {
 // bytes done so far and the total.
 
 // addFile uploads the file at path and writes it into the index.
-func addFile(ctx context.Context, store *tgstore.Store, key []byte, indexFile, path string, report func(done, total int64)) (entry, error) {
+func addFile(ctx context.Context, v *vault, to, indexFile, path string, report func(done, total int64)) (entry, error) {
+	store, err := v.get(to)
+	if err != nil {
+		return entry{}, err
+	}
 	file, err := os.Open(path)
 	if err != nil {
 		return entry{}, err
@@ -247,16 +272,14 @@ func addFile(ctx context.Context, store *tgstore.Store, key []byte, indexFile, p
 
 	var sent int64
 	report(0, info.Size())
-	store.Progress = func(bytes int) {
+	id, err := store.Upload(ctx, v.key, file, func(bytes int) {
 		sent += int64(bytes)
 		report(sent, info.Size())
-	}
-	id, err := store.Upload(ctx, key, file)
-	store.Progress = nil
+	})
 	if err != nil {
 		return entry{}, err
 	}
-	added := entry{Name: filepath.Base(path), ID: id, Size: info.Size(), Uploaded: time.Now()}
+	added := entry{Name: filepath.Base(path), ID: id, Backend: cmp.Or(to, v.def), Size: info.Size(), Uploaded: time.Now()}
 
 	unlock, err := lockIndex(indexFile)
 	if err != nil {
@@ -274,7 +297,11 @@ func addFile(ctx context.Context, store *tgstore.Store, key []byte, indexFile, p
 }
 
 // download refuses to overwrite, so a failed download can never destroy an existing file.
-func download(ctx context.Context, store *tgstore.Store, key []byte, e entry, output string, report func(done, total int64)) error {
+func download(ctx context.Context, v *vault, e entry, output string, report func(done, total int64)) error {
+	store, err := v.get(e.where())
+	if err != nil {
+		return err
+	}
 	file, err := os.OpenFile(output, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
 		return err
@@ -282,12 +309,10 @@ func download(ctx context.Context, store *tgstore.Store, key []byte, e entry, ou
 
 	var received int64
 	report(0, e.Size)
-	store.Progress = func(bytes int) {
+	err = store.Download(ctx, v.key, e.ID, file, func(bytes int) {
 		received += int64(bytes)
 		report(received, e.Size)
-	}
-	err = store.Download(ctx, key, e.ID, file)
-	store.Progress = nil
+	})
 	if err != nil {
 		file.Close()
 		os.Remove(output)
@@ -296,17 +321,26 @@ func download(ctx context.Context, store *tgstore.Store, key []byte, e entry, ou
 	return file.Close()
 }
 
-// removeFile deletes a stored file and takes it out of the index.
-// removeFile takes a file off the drive. Telegram refuses to delete messages
-// older than 48 hours, but the file still goes: its messages stay in the chat,
-// encrypted and unknown to anyone without the key. The note says so.
-func removeFile(ctx context.Context, store *tgstore.Store, key []byte, indexFile string, e entry, report func(done, total int64)) (string, error) {
+// removeFile takes a file off the drive and out of the index. Telegram refuses
+// to delete messages older than 48 hours, but the file still goes: its
+// messages stay in the chat, encrypted and unknown to anyone without the key.
+// The note says so. A bucket that could not delete is different: an object
+// left there is paid for and nobody can see it, so the file stays in the index
+// for another try.
+func removeFile(ctx context.Context, v *vault, e entry, indexFile string, report func(done, total int64)) (string, error) {
+	store, err := v.get(e.where())
+	if err != nil {
+		return "", err
+	}
 	var note string
-	if err := store.DeleteWithProgress(ctx, key, e.ID, func(done, total int) {
+	if err := store.Delete(ctx, v.key, e.ID, func(done, total int) {
 		if report != nil {
 			report(int64(done), int64(total))
 		}
 	}); err != nil {
+		if v.kinds[e.where()] != "telegram" {
+			return "", err
+		}
 		note = "The messages of " + cmp.Or(e.Name, e.ID) + " are still in the chat. "
 		if strings.Contains(err.Error(), "can't be deleted for everyone") {
 			note += "Telegram only lets a bot delete messages from the last 48 hours."
@@ -327,16 +361,20 @@ func removeFile(ctx context.Context, store *tgstore.Store, key []byte, indexFile
 	return note, saveIndex(indexFile, entries)
 }
 
-func backupIndex(ctx context.Context, store *tgstore.Store, key []byte, path string) error {
+func backupIndex(ctx context.Context, v *vault, path string) error {
+	store, err := v.get("")
+	if err != nil {
+		return err
+	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
-	id, err := store.Upload(ctx, key, bytes.NewReader(data))
+	id, err := store.Upload(ctx, v.key, bytes.NewReader(data), nil)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path+".remote", []byte(id+"\n"), 0o600)
+	return os.WriteFile(path+".remote", []byte(cmp.Or(v.def, "telegram")+" "+id+"\n"), 0o600)
 }
 
 // progressFor shows the progress of one file: a bar for a person, or a line

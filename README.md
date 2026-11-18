@@ -147,6 +147,37 @@ export TAAS_KEY="64 hex characters, taasant keygen prints a new one"
 
 `TG_CHAT_ID` is the number of the place the files go. For a private channel it is negative and starts with `-100`, as above. For the chat with the bot it is a positive number, your own user ID. The Telegram app does not show either one. The easy way is to let the setup screen find it: run `taasant` once with `TAAS_CONFIG` set to a throwaway path, then read `chat_id` from that file.
 
+### Other places for your files
+
+Telegram is the free choice. If you would rather pay for storage, taasant also works with **Cloudflare R2**, **Amazon S3** and **MinIO**, and with any other service that speaks the S3 API. The first question in the setup screen asks which one you want, and `taasant setup` adds another later. You can keep several at once: one is the default, and each file remembers where it went, so downloads and deletes find it by themselves.
+
+```bash
+taasant upload report.pdf            # goes to your default place
+taasant upload --to r2 report.pdf    # goes to the place called "r2"
+taasant list                         # shows a WHERE column once you use more than one
+```
+
+The setup asks for what each service needs, then tries your bucket with a small test file, so a wrong key shows up right away. The files are encrypted on your computer, as with Telegram, and are stored under random names. A bucket holds files up to 156 GiB each.
+
+For a bucket there are no environment variables, only the settings file. This is what `taasant` writes for R2, and you can write the same by hand. `default` is where new files go, and `backends` can hold several places.
+
+```json
+{
+  "key": "64 hex characters",
+  "default": "r2",
+  "backends": {
+    "r2": {
+      "type": "s3",
+      "endpoint": "https://<account id>.r2.cloudflarestorage.com",
+      "region": "auto",
+      "bucket": "my-bucket",
+      "access_key": "...",
+      "secret_key": "..."
+    }
+  }
+}
+```
+
 ## Using it
 
 There are two ways: a menu, and plain commands. Both do the same things.
@@ -171,6 +202,7 @@ While files are moving there is a line for each one. Esc cancels the ones that h
 
 ```bash
 taasant upload report.pdf          # store a file
+taasant setup                      # add a place for your files
 taasant list                       # see everything, newest first
 taasant list rep                   # search
 taasant download report            # get it back
@@ -250,7 +282,7 @@ If a file with that name already exists where you are, `download` stops with `fi
 
 **On your computer:** a list of what you have uploaded, called the index. It lives at `~/Library/Application Support/taas/index.json` on a Mac and `~/.config/taas/index.json` on Linux. Set `TAAS_INDEX` if you want it somewhere else.
 
-**A backup of that list:** every time you upload or delete, taasant also sends an encrypted copy of the index to the same place, and notes where it is in a file called `index.json.remote` next to the index. Each backup adds a couple of messages to the channel or chat, so expect some clutter.
+**A backup of that list:** every time you upload or delete, taasant also sends an encrypted copy of the index to your default place, and notes where it is in a file called `index.json.remote` next to the index: the place, then the ID. Each backup adds a couple of messages to a Telegram channel or chat, so expect some clutter. To get it back on another computer, run `taasant download --to <place> <id> index.json`.
 
 ## Things worth knowing
 

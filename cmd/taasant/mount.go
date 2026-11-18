@@ -33,13 +33,12 @@ func mount(background bool) error {
 	if err != nil {
 		return err
 	}
-	store, key, err := connect()
+	v, err := connect()
 	if err != nil {
 		return err
 	}
-	d := newDrive(store, key, indexFile)
+	d := newDrive(v, indexFile)
 	d.progress.path = indexFile + ".progress"
-	store.Progress = d.progress.add
 	defer os.Remove(d.progress.path)
 	d.note = func(text string) { fmt.Println(paint(outTTY, dim, "  "+text)) }
 	// Whoever is copying files in Finder is not looking at this window, so
@@ -150,6 +149,6 @@ func (d *drive) mount(background bool) error {
 	if !d.changed {
 		return nil
 	}
-	fmt.Println(paint(outTTY, dim, "  saving the list of files to the chat"))
-	return backupIndex(context.Background(), d.store, d.key, d.indexFile)
+	fmt.Println(paint(outTTY, dim, "  saving a backup of the list of files"))
+	return backupIndex(context.Background(), d.vault, d.indexFile)
 }

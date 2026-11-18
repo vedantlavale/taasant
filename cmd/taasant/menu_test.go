@@ -75,7 +75,7 @@ func testModel(t *testing.T) (model, *fakeTelegram) {
 
 	return model{
 		width: 80, height: 24,
-		store: store, key: make([]byte, 32),
+		vault:     telegramOnly(store),
 		indexFile: filepath.Join(t.TempDir(), "index.json"),
 		startDir:  dir, dir: dir, marked: map[string]int64{},
 	}, fake
@@ -178,7 +178,7 @@ func TestUploadDownloadDelete(t *testing.T) {
 
 func TestNotSetUp(t *testing.T) {
 	m, fake := testModel(t)
-	m.store, m.setup = nil, errors.New("TG_BOT_TOKEN is not set")
+	m.vault, m.setup = nil, errors.New("TG_BOT_TOKEN is not set")
 
 	m = press(m, "1", "down", "enter")
 	if m.screen != browsing || !strings.Contains(m.View(), "Not set up yet: TG_BOT_TOKEN is not set") {

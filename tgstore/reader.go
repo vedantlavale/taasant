@@ -59,7 +59,7 @@ type fetched struct {
 
 // Open returns a Reader for the object stored under id, which is size bytes
 // long. Telegram is not asked for anything until the first Read.
-func (s *Store) Open(ctx context.Context, key []byte, id string, size int64) *Reader {
+func (s *Store) Open(ctx context.Context, key []byte, id string, size int64) io.ReadSeeker {
 	return &Reader{store: s, ctx: ctx, key: key, id: id, size: size}
 }
 

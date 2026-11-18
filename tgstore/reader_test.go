@@ -14,7 +14,7 @@ func TestReader(t *testing.T) {
 	key := randomBytes(32)
 	data := randomBytes(35)
 
-	id, err := store.Upload(ctx, key, bytes.NewReader(data))
+	id, err := store.Upload(ctx, key, bytes.NewReader(data), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestReaderCacheIsKeyedByKey(t *testing.T) {
 	ctx := context.Background()
 	keyA, keyB := randomBytes(32), randomBytes(32)
 	data := randomBytes(35)
-	id, err := store.Upload(ctx, keyA, bytes.NewReader(data))
+	id, err := store.Upload(ctx, keyA, bytes.NewReader(data), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +113,7 @@ func TestReadersShare(t *testing.T) {
 	key := randomBytes(32)
 	data := randomBytes(35)
 
-	id, err := store.Upload(ctx, key, bytes.NewReader(data))
+	id, err := store.Upload(ctx, key, bytes.NewReader(data), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +158,7 @@ func TestReadersDoNotRefetchPendingParts(t *testing.T) {
 	ctx := context.Background()
 	key := randomBytes(32)
 	data := randomBytes(80) // 8 parts, more than keep
-	id, err := store.Upload(ctx, key, bytes.NewReader(data))
+	id, err := store.Upload(ctx, key, bytes.NewReader(data), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

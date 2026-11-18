@@ -19,7 +19,6 @@ func TestRemoveFileWithMessagesLeftBehind(t *testing.T) {
 	t.Cleanup(server.Close)
 	store := tgstore.New("TOKEN", 1)
 	store.Endpoint = server.URL
-	key := make([]byte, 32)
 
 	dir := t.TempDir()
 	file := filepath.Join(dir, "screenshot.png")
@@ -27,7 +26,8 @@ func TestRemoveFileWithMessagesLeftBehind(t *testing.T) {
 		t.Fatal(err)
 	}
 	indexFile := filepath.Join(dir, "index.json")
-	e, err := addFile(context.Background(), store, key, indexFile, file, func(done, total int64) {})
+	v := telegramOnly(store)
+	e, err := addFile(context.Background(), v, "", indexFile, file, func(done, total int64) {})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +36,7 @@ func TestRemoveFileWithMessagesLeftBehind(t *testing.T) {
 	fake.refuseDelete = true
 	fake.mu.Unlock()
 
-	note, err := removeFile(context.Background(), store, key, indexFile, e, nil)
+	note, err := removeFile(context.Background(), v, e, indexFile, nil)
 	if err != nil {
 		t.Fatalf("deleting the file failed: %v", err)
 	}
