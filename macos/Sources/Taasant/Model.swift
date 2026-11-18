@@ -312,7 +312,7 @@ final class Model: ObservableObject {
 
     func connect() {
         notice = nil
-        if autostart {
+        if autostart && agentLoaded() {
             // The login job owns the drive, so it is the one asked to start.
             Process.launchedProcess(launchPath: "/bin/launchctl", arguments: ["kickstart", "gui/\(getuid())/\(agentName)"])
         } else {
@@ -329,6 +329,19 @@ final class Model: ObservableObject {
                                 text: "Finder did not get the drive. The log in Settings may say why, for instance that another program has port 8738.")
             }
         }
+    }
+
+    // The login file can exist while the job is not loaded, for instance after
+    // a restart that skipped it, and then there is nothing to kick.
+    private func agentLoaded() -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+        process.arguments = ["print", "gui/\(getuid())/\(agentName)"]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        do { try process.run() } catch { return false }
+        process.waitUntilExit()
+        return process.terminationStatus == 0
     }
 
     func eject() {
