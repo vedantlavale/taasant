@@ -7,7 +7,7 @@ import SwiftUI
 enum Glass {
     // wrap puts a hosted view on glass. radius is the corner of the glass, 0 when
     // the window already cuts the corners.
-    @MainActor static func wrap(_ content: some View, radius: CGFloat) -> NSView {
+    @MainActor static func wrap(_ content: some View, radius: CGFloat, strongBlur: Bool = false) -> NSView {
         let hosted = NSHostingView(rootView: content)
         hosted.appearance = NSAppearance(named: .darkAqua)
         hosted.wantsLayer = true
@@ -29,11 +29,25 @@ enum Glass {
             underlay.material = .hudWindow
             underlay.blendingMode = .behindWindow
             underlay.state = .active
-            underlay.alphaValue = 0.85
+            underlay.alphaValue = strongBlur ? 1 : 0.85
             underlay.wantsLayer = true
             underlay.layer?.cornerRadius = radius
             underlay.layer?.masksToBounds = true
-            for v in [underlay, glass] {
+
+            // The window sits over other windows more often than the little
+            // panel does, so it gets a second layer: regular glass blurs the
+            // backdrop before the clear glass refracts what is left.
+            var layers: [NSView] = [underlay]
+            if strongBlur {
+                let blur = NSGlassEffectView()
+                blur.appearance = NSAppearance(named: .darkAqua)
+                blur.cornerRadius = radius
+                blur.style = .regular
+                blur.tintColor = NSColor.black.withAlphaComponent(0.45)
+                layers.append(blur)
+            }
+            layers.append(glass)
+            for v in layers {
                 v.translatesAutoresizingMaskIntoConstraints = false
                 container.addSubview(v)
                 NSLayoutConstraint.activate([

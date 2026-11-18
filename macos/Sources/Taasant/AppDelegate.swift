@@ -25,7 +25,7 @@ final class FilesWindow: NSObject, NSWindowDelegate {
             made.backgroundColor = .clear
             made.isMovableByWindowBackground = true
             made.appearance = NSAppearance(named: .darkAqua)
-            made.contentView = Glass.wrap(AppView(model: model), radius: 0)
+            made.contentView = Glass.wrap(AppView(model: model), radius: 0, strongBlur: true)
             made.delegate = self
             made.center()
             window = made
