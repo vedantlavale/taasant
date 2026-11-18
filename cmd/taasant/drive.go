@@ -10,8 +10,10 @@ import (
 	"maps"
 	"mime"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -140,8 +142,17 @@ func (d *drive) handler(host string) http.Handler {
 		// which by the rules of WebDAV means yes. The webdav package takes
 		// it for no, and saving by "write a new file, move it over the old
 		// one" would fail.
-		if r.Method == "MOVE" && r.Header.Get("Overwrite") == "" {
-			r.Header.Set("Overwrite", "T")
+		if r.Method == "MOVE" {
+			// WebDAV deletes the destination before it calls Rename. A move
+			// into the source, or onto the source itself, would therefore
+			// remove real files before Rename refuses it.
+			if moveInside(r, "/"+driveName) {
+				http.Error(w, "a folder cannot be moved into itself", http.StatusConflict)
+				return
+			}
+			if r.Header.Get("Overwrite") == "" {
+				r.Header.Set("Overwrite", "T")
+			}
 		}
 		dav.ServeHTTP(w, r)
 	})
@@ -203,6 +214,18 @@ func under(name, folder string) bool {
 	return name == folder || strings.HasPrefix(name, folder+"/")
 }
 
+// moveInside reports whether a MOVE would put a path inside itself, or onto
+// itself. Both would destroy files before the drive can refuse the rename.
+func moveInside(r *http.Request, prefix string) bool {
+	source := clean(strings.TrimPrefix(r.URL.Path, prefix))
+	destination, err := url.Parse(r.Header.Get("Destination"))
+	if err != nil {
+		return false
+	}
+	target := clean(strings.TrimPrefix(destination.Path, prefix))
+	return under(source, target) || under(target, source)
+}
+
 // helper reports whether name is a file Finder writes for itself.
 func helper(name string) bool {
 	base := path.Base(name)
@@ -235,6 +258,11 @@ func (d *drive) stored() (map[string]entry, error) {
 
 // update changes the index file.
 func (d *drive) update(change func([]entry) []entry) error {
+	unlock, err := lockIndex(d.indexFile)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	entries, err := loadIndex(d.indexFile)
 	if err != nil {
 		return err
@@ -398,10 +426,10 @@ func (d *drive) remove(name string) ([]entry, error) {
 	if in := parent(name); in != "" {
 		d.folders[in] = true
 	}
-	if _, found := d.local[name]; found {
-		delete(d.local, name)
-		return nil, nil
-	}
+	// A local file can sit over one of the same name in the index. Deleting
+	// both must remove the stored file too, or it reappears as soon as the
+	// overlay is gone.
+	delete(d.local, name)
 
 	files, err := d.stored()
 	if err != nil {
@@ -537,6 +565,35 @@ func (d *drive) put(added entry) error {
 	return nil
 }
 
+// retire takes stored files of one name off the index, so a local file can
+// take their place. It must be called with d.mu held. The messages to discard
+// are returned: deleting from the chat is slow and happens outside the lock.
+func (d *drive) retire(name string) ([]entry, error) {
+	files, err := d.stored()
+	if err != nil {
+		return nil, err
+	}
+	var old []entry
+	for other, e := range files {
+		if other == name {
+			old = append(old, e)
+		}
+	}
+	if len(old) == 0 {
+		return nil, nil
+	}
+	ids := make(map[string]bool, len(old))
+	for _, e := range old {
+		ids[e.ID] = true
+	}
+	if err := d.update(func(entries []entry) []entry {
+		return slices.DeleteFunc(entries, func(e entry) bool { return ids[e.ID] })
+	}); err != nil {
+		return nil, err
+	}
+	return old, nil
+}
+
 // failed is called when a file could not be saved. Finder does not tell: it
 // shows the copy as done whatever the drive answers. So the empty file Finder
 // made first is taken away again, and the alert has to say what happened.
@@ -648,9 +705,22 @@ func (w *writing) Close() error {
 				return err
 			}
 		}
+		var old []entry
 		w.d.mu.Lock()
+		if !helper(w.name) {
+			var err error
+			old, err = w.d.retire(w.name)
+			if err != nil {
+				w.d.mu.Unlock()
+				w.d.failed(w.name, err)
+				return err
+			}
+		}
 		w.d.local[w.name] = kept{w.kept, w.when}
 		w.d.mu.Unlock()
+		for _, e := range old {
+			w.d.discard(e)
+		}
 		return nil
 	}
 	// If Finder broke off, the upload fails here, and half a file is never

@@ -85,6 +85,21 @@ func settings() (config, error) {
 	return c, c.check()
 }
 
+// savedSettings reads only the settings file. The login job does not get
+// TG_BOT_TOKEN, TG_CHAT_ID or TAAS_KEY from the shell, so anything that
+// checks what the job will load must use this and not settings().
+func savedSettings() (config, error) {
+	path, err := configPath()
+	if err != nil {
+		return config{}, err
+	}
+	c, err := loadConfig(path)
+	if err != nil {
+		return config{}, err
+	}
+	return c, c.check()
+}
+
 func (c config) check() error {
 	key, err := hex.DecodeString(c.Key)
 	switch {

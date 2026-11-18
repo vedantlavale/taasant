@@ -157,11 +157,15 @@ struct PopoverView: View {
                     model.delete(file)
                 }
                 .foregroundStyle(.red)
-            } else if view.hovered == file.id {
+            } else {
+                // Always present, so keyboard and accessibility users can
+                // reach them. Hover only makes them stand out.
                 Button { model.quickDownload(file) } label: { Image(systemName: "arrow.down.circle") }
                     .help("Download to Downloads")
+                    .opacity(view.hovered == file.id ? 1 : 0.55)
                 Button { view.asked = file.id } label: { Image(systemName: "trash") }
                     .help("Delete")
+                    .opacity(view.hovered == file.id ? 1 : 0.55)
             }
         }
         .buttonStyle(.borderless)

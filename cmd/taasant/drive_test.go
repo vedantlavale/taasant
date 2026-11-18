@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/vedantlavale/taasant/tgstore"
 )
@@ -400,6 +401,73 @@ func (b *brokenBody) Read(p []byte) (int, error) {
 }
 
 func (b *brokenBody) Close() error { return nil }
+
+// A move that puts a folder inside itself would lose its files: WebDAV
+// deletes the destination before the drive can refuse the rename.
+func TestDriveMoveIntoItself(t *testing.T) {
+	td := newTestDrive(t)
+	td.do("MKCOL", "text", "")
+	td.do("PUT", "text/notes.txt", "hello")
+
+	for _, to := range []string{"text/inside", "text"} {
+		destination := "http://" + testHost + "/taasant/" + to
+		if status, _ := td.do("MOVE", "text", "", "Destination", destination); status != http.StatusConflict {
+			t.Errorf("MOVE text to %s answered %d, want 409", to, status)
+		}
+	}
+	if td.names() != "text/notes.txt" || td.inChat() != 2 {
+		t.Fatalf("after the refused moves the index has %q and the chat %d messages", td.names(), td.inChat())
+	}
+}
+
+// A local file can sit over a stored one of the same name. Deleting it must
+// take the stored one away too, or it comes straight back.
+func TestDriveDeleteOverlay(t *testing.T) {
+	td := newTestDrive(t)
+	td.do("PUT", "notes.txt", "stored")
+	td.d.mu.Lock()
+	td.d.local["notes.txt"] = kept{[]byte("local"), time.Now()}
+	td.d.mu.Unlock()
+
+	if status, _ := td.do("DELETE", "notes.txt", ""); status != http.StatusNoContent {
+		t.Fatalf("DELETE answered %d", status)
+	}
+	if td.names() != "" {
+		t.Fatalf("the index has %q", td.names())
+	}
+	td.d.mu.Lock()
+	_, found := td.d.local["notes.txt"]
+	td.d.mu.Unlock()
+	if found {
+		t.Error("the local file is still there")
+	}
+}
+
+// Writing an empty file over a stored one leaves the empty file on the drive.
+// The old contents must not come back after a remount.
+func TestDriveEmptyWriteRetiresStored(t *testing.T) {
+	td := newTestDrive(t)
+	td.do("PUT", "notes.txt", "old contents")
+	if td.names() != "notes.txt" {
+		t.Fatalf("the index has %q", td.names())
+	}
+
+	td.do("PUT", "notes.txt", "")
+	if td.names() != "" || td.inChat() != 0 {
+		t.Fatalf("after the empty write the index has %q and the chat %d messages", td.names(), td.inChat())
+	}
+	if status, got := td.do("GET", "notes.txt", ""); status != http.StatusOK || got != "" {
+		t.Fatalf("GET answered %d %q", status, got)
+	}
+
+	// The local file is gone after a remount. The old file must stay gone.
+	td.d.mu.Lock()
+	delete(td.d.local, "notes.txt")
+	td.d.mu.Unlock()
+	if status, _ := td.do("GET", "notes.txt", ""); status != http.StatusNotFound {
+		t.Fatalf("the old file came back with %d", status)
+	}
+}
 
 func TestDriveBodyFails(t *testing.T) {
 	for _, sent := range []string{"", "hello"} {

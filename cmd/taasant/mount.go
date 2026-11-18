@@ -83,11 +83,17 @@ func (d *drive) mount(background bool) error {
 	}
 	host += ":" + drivePort
 
-	listener, err := net.Listen("tcp", "127.0.0.1:"+drivePort)
+	listener, err := new(net.ListenConfig).Listen(context.Background(), "tcp", "127.0.0.1:"+drivePort)
 	if err != nil {
 		return fmt.Errorf("the drive could not start, is it mounted already? %w", err)
 	}
-	server := &http.Server{Handler: d.handler(host)}
+	// A file can take a long time to upload or download, so the whole
+	// request has no time limit. Headers cannot hang the drive, though.
+	server := &http.Server{
+		Handler:           d.handler(host),
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       time.Minute,
+	}
 	go server.Serve(listener)
 	defer server.Close()
 

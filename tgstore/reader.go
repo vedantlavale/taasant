@@ -3,10 +3,20 @@ package tgstore
 import (
 	"context"
 	"crypto/cipher"
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"io/fs"
 	"slices"
 )
+
+// keyID names a key without keeping it secret. It lets the caches distinguish
+// readers of the same object under different keys: a shape or a part fetched
+// with one key must never be handed out as plaintext for another.
+func keyID(key []byte) string {
+	sum := sha256.Sum256(key)
+	return hex.EncodeToString(sum[:8])
+}
 
 // keep is how many parts stay in memory after a Reader fetched them.
 const keep = 4
@@ -25,10 +35,11 @@ type Reader struct {
 	size   int64
 	offset int64
 
-	aead  cipher.AEAD
-	shape shape
-	index int // the part that data holds
-	data  []byte
+	aead     cipher.AEAD
+	identity string // of the key, for the shared caches
+	shape    shape
+	index    int // the part that data holds
+	data     []byte
 }
 
 // shape is what a Reader has to know about an object: its parts, and how
@@ -40,9 +51,10 @@ type shape struct {
 
 // fetched is a part that is on its way from Telegram or has arrived.
 type fetched struct {
-	done chan struct{} // closed once data or err is set
-	data []byte
-	err  error
+	done  chan struct{} // closed once data or err is set
+	ready bool          // the fetch is over, so this entry may be evicted
+	data  []byte
+	err   error
 }
 
 // Open returns a Reader for the object stored under id, which is size bytes
@@ -60,11 +72,12 @@ func (r *Reader) Read(p []byte) (int, error) {
 		if err != nil {
 			return 0, err
 		}
-		shape, err := r.store.shapeOf(r.ctx, aead, r.id)
+		identity := keyID(r.key)
+		shape, err := r.store.shapeOf(r.ctx, aead, identity, r.id)
 		if err != nil {
 			return 0, err
 		}
-		r.aead, r.shape = aead, shape
+		r.aead, r.identity, r.shape = aead, identity, shape
 	}
 
 	index := int(r.offset / r.shape.partSize)
@@ -72,7 +85,7 @@ func (r *Reader) Read(p []byte) (int, error) {
 		if index >= len(r.shape.parts) {
 			return 0, io.ErrUnexpectedEOF
 		}
-		data, err := r.store.part(r.ctx, r.aead, r.shape.parts[index].FileID)
+		data, err := r.store.part(r.ctx, r.aead, r.identity, r.shape.parts[index].FileID)
 		if err != nil {
 			return 0, err
 		}
@@ -105,9 +118,10 @@ func (r *Reader) Seek(offset int64, whence int) (int64, error) {
 
 // shapeOf returns the shape of an object, and remembers it. The length of a
 // part is not written down anywhere, so the first part is fetched to see it.
-func (s *Store) shapeOf(ctx context.Context, aead cipher.AEAD, id string) (shape, error) {
+func (s *Store) shapeOf(ctx context.Context, aead cipher.AEAD, identity, id string) (shape, error) {
+	cacheKey := id + "@" + identity
 	s.mu.Lock()
-	known, found := s.shapes[id]
+	known, found := s.shapes[cacheKey]
 	s.mu.Unlock()
 	if found {
 		return known, nil
@@ -120,7 +134,7 @@ func (s *Store) shapeOf(ctx context.Context, aead cipher.AEAD, id string) (shape
 	if len(m.Parts) == 0 {
 		return shape{}, io.ErrUnexpectedEOF
 	}
-	first, err := s.part(ctx, aead, m.Parts[0].FileID)
+	first, err := s.part(ctx, aead, identity, m.Parts[0].FileID)
 	if err != nil {
 		return shape{}, err
 	}
@@ -133,41 +147,50 @@ func (s *Store) shapeOf(ctx context.Context, aead cipher.AEAD, id string) (shape
 	if s.shapes == nil {
 		s.shapes = map[string]shape{}
 	}
-	s.shapes[id] = known
+	s.shapes[cacheKey] = known
 	s.mu.Unlock()
 	return known, nil
 }
 
 // part returns one decrypted part. The last few are kept, and a part that
 // another Reader is fetching right now is waited for, not fetched again.
-func (s *Store) part(ctx context.Context, aead cipher.AEAD, fileID string) ([]byte, error) {
+func (s *Store) part(ctx context.Context, aead cipher.AEAD, identity, fileID string) ([]byte, error) {
+	cacheKey := fileID + "@" + identity
 	s.mu.Lock()
-	f, found := s.parts[fileID]
+	f, found := s.parts[cacheKey]
 	if !found {
 		f = &fetched{done: make(chan struct{})}
 		if s.parts == nil {
 			s.parts = map[string]*fetched{}
 		}
-		s.parts[fileID] = f
-		s.order = append(s.order, fileID)
-		if len(s.order) > keep {
-			delete(s.parts, s.order[0])
-			s.order = s.order[1:]
+		s.parts[cacheKey] = f
+		s.order = append(s.order, cacheKey)
+		// Only finished parts are evicted. A part that is still being
+		// fetched must stay registered, or another Reader starts a second
+		// download of the same bytes.
+		for len(s.order) > keep {
+			i := slices.IndexFunc(s.order, func(id string) bool { return s.parts[id].ready })
+			if i < 0 {
+				break
+			}
+			delete(s.parts, s.order[i])
+			s.order = slices.Delete(s.order, i, i+1)
 		}
 	}
 	s.mu.Unlock()
 
 	if !found {
 		f.data, f.err = s.fetchPart(ctx, aead, fileID, nil)
+		s.mu.Lock()
+		f.ready = true
 		if f.err != nil {
 			// A failure is not kept: the next Reader tries again.
-			s.mu.Lock()
-			if s.parts[fileID] == f {
-				delete(s.parts, fileID)
-				s.order = slices.DeleteFunc(s.order, func(id string) bool { return id == fileID })
+			if s.parts[cacheKey] == f {
+				delete(s.parts, cacheKey)
+				s.order = slices.DeleteFunc(s.order, func(id string) bool { return id == cacheKey })
 			}
-			s.mu.Unlock()
 		}
+		s.mu.Unlock()
 		close(f.done)
 		return f.data, f.err
 	}

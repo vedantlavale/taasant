@@ -177,7 +177,9 @@ final class Model: ObservableObject {
     // Setting up asks questions, so it needs a terminal.
     func setUp() {
         let script = FileManager.default.temporaryDirectory.appendingPathComponent("taasant-setup.command")
-        try? "#!/bin/sh\nexec '\(CLI.binary.path)'\n".write(to: script, atomically: true, encoding: .utf8)
+        // A path can hold an apostrophe, as in /Applications/Bob's Apps/.
+        let quoted = "'" + CLI.binary.path.replacingOccurrences(of: "'", with: "'\\''") + "'"
+        try? "#!/bin/sh\nexec \(quoted)\n".write(to: script, atomically: true, encoding: .utf8)
         try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path)
         NSWorkspace.shared.open(script)
     }
@@ -253,7 +255,7 @@ final class Model: ObservableObject {
         }
     }
 
-    func clearFinished() { jobs.removeAll { $0.finished } }
+    func clearFinished() { jobs.removeAll { $0.finished || $0.error != nil } }
 
     // One file at a time: two uploads would only share the same connection.
     private func enqueue(_ job: Job) {

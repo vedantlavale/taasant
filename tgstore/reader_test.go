@@ -72,6 +72,28 @@ func TestReader(t *testing.T) {
 
 // Open and Seek ask Telegram for nothing, so they work even for an object
 // that is not there. The first Read finds out.
+// Readers of one object with different keys must not share decrypted bytes
+// or the shape of the object through the store's caches.
+func TestReaderCacheIsKeyedByKey(t *testing.T) {
+	store, _ := newTestStore(t, 10)
+	ctx := context.Background()
+	keyA, keyB := randomBytes(32), randomBytes(32)
+	data := randomBytes(35)
+	id, err := store.Upload(ctx, keyA, bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := io.ReadAll(store.Open(ctx, keyA, id, int64(len(data))))
+	if err != nil || !bytes.Equal(first, data) {
+		t.Fatalf("reading with the right key gave %v, %v", first, err)
+	}
+	second, err := io.ReadAll(store.Open(ctx, keyB, id, int64(len(data))))
+	if err == nil && bytes.Equal(second, data) {
+		t.Fatal("a reader with another key got the first key's plaintext")
+	}
+}
+
 func TestReaderMissingObject(t *testing.T) {
 	store, _ := newTestStore(t, 10)
 	r := store.Open(context.Background(), randomBytes(32), "1:missing", 20)
@@ -126,5 +148,43 @@ func TestReadersShare(t *testing.T) {
 	defer fake.mu.Unlock()
 	if fake.downloads != downloads {
 		t.Fatalf("a later Reader made %d more downloads", fake.downloads-downloads)
+	}
+}
+
+// More parts than the cache can hold must not make Readers download the
+// same part twice while it is still on its way.
+func TestReadersDoNotRefetchPendingParts(t *testing.T) {
+	store, fake := newTestStore(t, 10)
+	ctx := context.Background()
+	key := randomBytes(32)
+	data := randomBytes(80) // 8 parts, more than keep
+	id, err := store.Upload(ctx, key, bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The first Read fills the shape cache. From here each Reader needs one
+	// manifest and one part, at most.
+	io.ReadAll(store.Open(ctx, key, id, int64(len(data))))
+	fake.mu.Lock()
+	before := fake.downloads
+	fake.mu.Unlock()
+
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Go(func() {
+			got, err := io.ReadAll(store.Open(ctx, key, id, int64(len(data))))
+			if err != nil || !bytes.Equal(got, data) {
+				t.Errorf("a Reader got other bytes, or %v", err)
+			}
+		})
+	}
+	wg.Wait()
+
+	fake.mu.Lock()
+	extra := fake.downloads - before
+	fake.mu.Unlock()
+	if extra > 16 { // 8 manifests and 8 parts
+		t.Fatalf("8 Readers made %d downloads, some parts were fetched twice", extra)
 	}
 }

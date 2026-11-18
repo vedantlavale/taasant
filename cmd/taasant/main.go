@@ -249,6 +249,11 @@ func addFile(ctx context.Context, store *tgstore.Store, key []byte, indexFile, p
 	}
 	added := entry{Name: filepath.Base(path), ID: id, Size: info.Size(), Uploaded: time.Now()}
 
+	unlock, err := lockIndex(indexFile)
+	if err != nil {
+		return added, fmt.Errorf("uploaded as %s, but the index could not be locked: %w", id, err)
+	}
+	defer unlock()
 	entries, err := loadIndex(indexFile)
 	if err == nil {
 		err = saveIndex(indexFile, append(entries, added))
@@ -287,6 +292,11 @@ func removeFile(ctx context.Context, store *tgstore.Store, key []byte, indexFile
 	if err := store.Delete(ctx, key, e.ID); err != nil {
 		return err
 	}
+	unlock, err := lockIndex(indexFile)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	entries, err := loadIndex(indexFile)
 	if err != nil {
 		return err

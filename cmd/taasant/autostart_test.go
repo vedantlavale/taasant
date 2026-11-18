@@ -38,6 +38,22 @@ func TestAgentPlist(t *testing.T) {
 	}
 }
 
+// The login job does not inherit the shell's secrets, so enabling autostart
+// must check only what is in the settings file.
+func TestAutostartCheckIgnoresShellSettings(t *testing.T) {
+	t.Setenv("TAAS_CONFIG", filepath.Join(t.TempDir(), "missing.json"))
+	t.Setenv("TG_BOT_TOKEN", "123:ABC")
+	t.Setenv("TG_CHAT_ID", "1")
+	t.Setenv("TAAS_KEY", strings.Repeat("a", 64))
+
+	if _, err := settings(); err != nil {
+		t.Fatalf("the shell settings should be usable: %v", err)
+	}
+	if _, err := savedSettings(); err == nil {
+		t.Fatal("autostart accepted a setup the login job cannot load")
+	}
+}
+
 func TestAgentPlistWithoutEnvironment(t *testing.T) {
 	t.Setenv("TAAS_CONFIG", "")
 	t.Setenv("TAAS_INDEX", "")

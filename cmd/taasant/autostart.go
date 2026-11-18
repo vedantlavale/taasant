@@ -93,7 +93,7 @@ func autostart(on bool) error {
 		return nil
 	}
 
-	if _, err := settings(); err != nil {
+	if _, err := savedSettings(); err != nil {
 		return err
 	}
 	program, err := os.Executable()

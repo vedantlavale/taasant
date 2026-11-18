@@ -50,6 +50,9 @@ struct FilesView: View {
                 List(shown) { file in row(file) }
             }
             if !model.jobs.isEmpty || model.driveUpload != nil { jobs }
+            if let message = model.message {
+                Text(message).font(.caption).foregroundStyle(.red).padding(.horizontal, 10)
+            }
         }
         .overlay { if view.targeted { RoundedRectangle(cornerRadius: 8).stroke(Color.accentColor, lineWidth: 3).padding(4) } }
         .onDrop(of: [.fileURL], isTargeted: $view.targeted) { model.drop($0) }
