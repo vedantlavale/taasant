@@ -14,6 +14,7 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/vedantlavale/taasant/tgstore"
@@ -32,8 +33,8 @@ const usage = `usage:
   taasant version
 
 Add --json to list, upload, download or delete to get lines of JSON, which is
-what the Mac app reads: "list" gives all files as one array, and an upload or
-download gives {"done":..,"total":..} as it goes.
+what the Mac app reads: "list" gives all files as one array, and an upload,
+download or delete gives {"done":..,"total":..} as it goes.
 
 A name can be typed partly: "taasant download hol" finds "holiday.jpg".
 
@@ -178,7 +179,7 @@ func run(args []string) error {
 		if err != nil {
 			return err
 		}
-		note, err := removeFile(ctx, store, key, indexFile, e)
+		note, err := removeFile(ctx, store, key, indexFile, e, progressFor(cmp.Or(e.Name, e.ID), asJSON))
 		if err != nil {
 			return err
 		}
@@ -299,10 +300,19 @@ func download(ctx context.Context, store *tgstore.Store, key []byte, e entry, ou
 // removeFile takes a file off the drive. Telegram refuses to delete messages
 // older than 48 hours, but the file still goes: its messages stay in the chat,
 // encrypted and unknown to anyone without the key. The note says so.
-func removeFile(ctx context.Context, store *tgstore.Store, key []byte, indexFile string, e entry) (string, error) {
+func removeFile(ctx context.Context, store *tgstore.Store, key []byte, indexFile string, e entry, report func(done, total int64)) (string, error) {
 	var note string
-	if err := store.Delete(ctx, key, e.ID); err != nil {
-		note = "the messages of " + cmp.Or(e.Name, e.ID) + " are still in the chat: " + err.Error()
+	if err := store.DeleteWithProgress(ctx, key, e.ID, func(done, total int) {
+		if report != nil {
+			report(int64(done), int64(total))
+		}
+	}); err != nil {
+		note = "The messages of " + cmp.Or(e.Name, e.ID) + " are still in the chat. "
+		if strings.Contains(err.Error(), "can't be deleted for everyone") {
+			note += "Telegram only lets a bot delete messages from the last 48 hours."
+		} else {
+			note += err.Error()
+		}
 	}
 	unlock, err := lockIndex(indexFile)
 	if err != nil {

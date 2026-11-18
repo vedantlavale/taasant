@@ -88,9 +88,15 @@ final class MenuBar: NSObject, NSPopoverDelegate {
             button.image = NSImage(systemSymbolName: model.mounted ? "externaldrive.fill" : "externaldrive",
                                    accessibilityDescription: "taasant")
         }
-        let fraction = model.jobs.first { !$0.finished && $0.error == nil }?.fraction ?? model.driveUpload?.fraction
-        button.imagePosition = fraction == nil ? .imageOnly : .imageLeading
-        button.title = fraction.map { " \(Int($0 * 100))%" } ?? ""
+        if let activity = model.activity {
+            button.imagePosition = .imageLeading
+            button.title = activity.fraction.map { " \(Int($0 * 100))%" } ?? " …"
+            button.toolTip = activity.title
+        } else {
+            button.imagePosition = .imageOnly
+            button.title = ""
+            button.toolTip = nil
+        }
     }
 }
 

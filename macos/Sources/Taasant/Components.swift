@@ -1,5 +1,58 @@
 import SwiftUI
 
+// One place for a message: a real alert, not a paragraph in the list.
+extension View {
+    func noticeAlert(_ model: Model) -> some View {
+        alert(model.notice?.title ?? "taasant", isPresented: Binding(
+            get: { model.notice != nil },
+            set: { if !$0 { model.notice = nil } }
+        )) {
+            Button("OK", role: .cancel) { model.notice = nil }
+        } message: {
+            Text(model.notice?.text ?? "")
+        }
+    }
+}
+
+// The strip under the menu-bar header. It shows the same work as the
+// Transfers section without making the person change tabs to find it.
+struct ActivityStrip: View {
+    @ObservedObject var model: Model
+
+    var body: some View {
+        if let activity = model.activity {
+            VStack(spacing: 5) {
+                HStack(spacing: 6) {
+                    Image(systemName: activity.symbol)
+                        .foregroundStyle(Brand.accent)
+                    Text(activity.title)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Spacer(minLength: 4)
+                    if !activity.detail.isEmpty {
+                        Text(activity.detail).monospacedDigit()
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(Brand.text)
+
+                if let fraction = activity.fraction {
+                    ProgressView(value: fraction)
+                        .progressViewStyle(.linear)
+                        .tint(Brand.accent)
+                } else {
+                    ProgressView()
+                        .progressViewStyle(.linear)
+                        .tint(Brand.accent)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Brand.raised)
+        }
+    }
+}
+
 struct SectionHeader: View {
     let title: String
     var subtitle: String? = nil
@@ -67,21 +120,31 @@ struct JobRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: job.kind == .upload ? "arrow.up" : "arrow.down")
-                .foregroundStyle(Brand.accent)
+            Image(systemName: job.kind.symbol)
+                .foregroundStyle(job.kind == .delete ? Brand.danger : Brand.accent)
             VStack(alignment: .leading, spacing: 2) {
                 Text(job.title).lineLimit(1).truncationMode(.middle).foregroundStyle(Brand.text)
                 if let error = job.error {
                     Text(error).foregroundStyle(Brand.danger).lineLimit(2).font(.caption)
                 } else if job.finished {
-                    Text("Done").font(.caption).foregroundStyle(Brand.success)
+                    if let note = job.note {
+                        Text(note).foregroundStyle(Brand.muted).lineLimit(3).font(.caption)
+                    } else {
+                        Text("Done").font(.caption).foregroundStyle(Brand.success)
+                    }
+                } else if let fraction = job.fraction {
+                    ProgressView(value: fraction)
                 } else {
-                    ProgressView(value: job.fraction)
+                    ProgressView()
                 }
             }
             Spacer()
             if !job.finished && job.error == nil {
-                Text(sizes(job.done, job.total)).font(.caption).foregroundStyle(Brand.muted)
+                if job.fraction != nil {
+                    Text(sizes(job.done, job.total)).font(.caption).foregroundStyle(Brand.muted)
+                } else {
+                    Text(job.kind.verb.lowercased() + "…").font(.caption).foregroundStyle(Brand.muted)
+                }
             }
         }
         .padding(.vertical, 5)

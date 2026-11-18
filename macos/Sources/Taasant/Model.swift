@@ -9,6 +9,38 @@ struct StoredFile: Identifiable, Hashable, Decodable {
     let uploaded: Date
 }
 
+enum FileKind: String {
+    case image, video, audio, document, other
+}
+
+extension StoredFile {
+    // The filter bar groups files by what they are, so a screenshot and a
+    // video can be found without searching for their names.
+    var kind: FileKind {
+        switch (name as NSString).pathExtension.lowercased() {
+        case "png", "jpg", "jpeg", "gif", "heic", "heif", "webp", "tif", "tiff", "bmp", "svg", "ico":
+            return .image
+        case "mp4", "mov", "m4v", "avi", "mkv", "webm", "mpg", "mpeg":
+            return .video
+        case "mp3", "m4a", "wav", "aif", "aiff", "flac", "ogg", "opus":
+            return .audio
+        case "pdf", "doc", "docx", "txt", "md", "csv", "xls", "xlsx", "ppt", "pptx",
+             "pages", "numbers", "key", "rtf", "html", "htm", "json", "xml", "epub":
+            return .document
+        default:
+            return .other
+        }
+    }
+}
+
+// A message for the person using the app. It is shown as an alert, never as
+// a paragraph pushed into the file list.
+struct Notice: Identifiable {
+    let id = UUID()
+    let title: String
+    let text: String
+}
+
 // What Finder is copying to the drive, as the drive reports it.
 struct DriveUpload: Decodable {
     let files: [String]
@@ -26,7 +58,34 @@ func sizes(_ done: Int64, _ total: Int64) -> String {
 }
 
 struct Job: Identifiable {
-    enum Kind { case upload, download }
+    enum Kind: String {
+        case upload, download, delete
+
+        var symbol: String {
+            switch self {
+            case .upload: return "arrow.up"
+            case .download: return "arrow.down"
+            case .delete: return "trash"
+            }
+        }
+
+        var verb: String {
+            switch self {
+            case .upload: return "Uploading"
+            case .download: return "Downloading"
+            case .delete: return "Deleting"
+            }
+        }
+
+        var failed: String {
+            switch self {
+            case .upload: return "Upload failed"
+            case .download: return "Download failed"
+            case .delete: return "Delete failed"
+            }
+        }
+    }
+
     let id = UUID()
     let kind: Kind
     let title: String
@@ -35,8 +94,17 @@ struct Job: Identifiable {
     var done: Int64 = 0
     var total: Int64 = 0
     var error: String?
+    var note: String?
     var finished = false
     var reveal: URL?
+}
+
+// What is moving now, worded for the strip under the menu-bar header.
+struct Activity {
+    let title: String
+    let symbol: String
+    let detail: String
+    let fraction: Double?
 }
 
 private let driveFolder = "/Volumes/taasant"
@@ -52,7 +120,7 @@ final class Model: ObservableObject {
     @Published var mounted = false
     @Published var autostart = false
     @Published var configured = true
-    @Published var message: String?
+    @Published var notice: Notice?
     @Published var driveUpload: DriveUpload?
     // A temporary view setting: hiding files here changes nothing on disk or
     // in Telegram, and the window keeps showing them.
@@ -68,6 +136,29 @@ final class Model: ObservableObject {
     var settingsPath: String { config.path }
     var indexFile: String { home.appendingPathComponent("Library/Application Support/taas/index.json").path }
     var version: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev" }
+
+    // The one thing worth showing above the files: the job that is running,
+    // or a copy into the drive when Finder is the one moving it.
+    var activity: Activity? {
+        if let job = jobs.first(where: { !$0.finished && $0.error == nil }) {
+            return Activity(
+                title: "\(job.kind.verb) \(job.title)",
+                symbol: job.kind.symbol,
+                detail: job.fraction.map { "\(Int($0 * 100))%" }
+                    ?? (job.total > 0 ? sizes(job.done, job.total) : "starting…"),
+                fraction: job.fraction
+            )
+        }
+        if let upload = driveUpload {
+            return Activity(
+                title: "Copying \(upload.title) to the drive",
+                symbol: "arrow.up.to.line",
+                detail: upload.fraction.map { "\(Int($0 * 100))%" } ?? "",
+                fraction: upload.fraction
+            )
+        }
+        return nil
+    }
 
     init() {
         configured = FileManager.default.fileExists(atPath: config.path)
@@ -139,12 +230,14 @@ final class Model: ObservableObject {
     // MARK: the drive
 
     func connect() {
-        message = nil
+        notice = nil
         if autostart {
             // The login job owns the drive, so it is the one asked to start.
             Process.launchedProcess(launchPath: "/bin/launchctl", arguments: ["kickstart", "gui/\(getuid())/\(agentName)"])
         } else {
-            do { try CLI.start(["mount", "background"]) } catch { message = error.localizedDescription }
+            do { try CLI.start(["mount", "background"]) } catch {
+                notice = Notice(title: "Could not start the drive", text: error.localizedDescription)
+            }
         }
     }
 
@@ -154,7 +247,7 @@ final class Model: ObservableObject {
                 _ = try await run("/sbin/umount", [driveFolder])
                 mounted = false
             } catch {
-                message = "The drive is busy: a file is open or still being saved."
+                notice = Notice(title: "The drive is busy", text: "A file is open or still being saved.")
             }
         }
     }
@@ -167,7 +260,7 @@ final class Model: ObservableObject {
                 _ = try await CLI.run(on ? ["autostart"] : ["autostart", "off"])
                 if on { try? SMAppService.mainApp.register() } else { try? await SMAppService.mainApp.unregister() }
             } catch {
-                message = error.localizedDescription
+                notice = Notice(title: "Start at login", text: error.localizedDescription)
             }
             await tick()
         }
@@ -251,22 +344,10 @@ final class Model: ObservableObject {
         enqueue(Job(kind: .download, title: file.name, arguments: ["download", file.id, output.path, "--json"]))
     }
 
+    // A delete is a job like any other, so it gets a bar and a place in the
+    // menu-bar progress while Telegram removes every message.
     func delete(_ file: StoredFile) {
-        Task {
-            do {
-                let output = try await CLI.run(["delete", file.id, "--json"])
-                await reload()
-                // Telegram keeps messages older than 48 hours. The file has
-                // gone from the drive, but say what was left in the chat.
-                if let data = output.data(using: .utf8),
-                   let result = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let note = result["note"] as? String {
-                    message = note
-                }
-            } catch {
-                message = error.localizedDescription
-            }
-        }
+        enqueue(Job(kind: .delete, title: file.name, arguments: ["delete", file.id, "--json"]))
     }
 
     func clearFinished() { jobs.removeAll { $0.finished || $0.error != nil } }
@@ -289,7 +370,7 @@ final class Model: ObservableObject {
             if let i = jobs.firstIndex(where: { $0.id == job.id }) { edit(&jobs[i]) }
         }
         do {
-            _ = try await CLI.run(job.arguments) { line in
+            let output = try await CLI.run(job.arguments) { line in
                 guard let data = line.data(using: .utf8),
                       let numbers = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                       let done = numbers["done"] as? Double, let total = numbers["total"] as? Double, total > 0
@@ -299,8 +380,27 @@ final class Model: ObservableObject {
             change { $0.finished = true; $0.fraction = 1 }
             if let reveal = job.reveal { NSWorkspace.shared.activateFileViewerSelecting([reveal]) }
             await reload()
+            // Telegram keeps messages older than 48 hours. The file has gone
+            // from the drive, but the note is shown in an alert and kept on
+            // the row in Transfers.
+            if job.kind == .delete, let note = Self.note(in: output) {
+                change { $0.note = note }
+                notice = Notice(title: "Deleted \(job.title)", text: note)
+            }
         } catch {
             change { $0.error = error.localizedDescription }
+            notice = Notice(title: job.kind.failed, text: error.localizedDescription)
         }
+    }
+
+    // A delete prints progress lines and then one last object with the result.
+    private static func note(in output: String) -> String? {
+        for line in output.split(separator: "\n").reversed() {
+            guard let data = String(line).data(using: .utf8),
+                  let result = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let note = result["note"] as? String else { continue }
+            return note
+        }
+        return nil
     }
 }

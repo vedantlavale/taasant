@@ -9,6 +9,7 @@ struct PopoverView: View {
         VStack(spacing: 0) {
             header
             Divider().background(Brand.line)
+            ActivityStrip(model: model)
             HStack(spacing: 0) {
                 Sidebar(model: model, state: sidebar, compact: true)
                 Divider().background(Brand.line)
@@ -26,6 +27,7 @@ struct PopoverView: View {
             }
         }
         .frame(width: 400, height: 440)
+        .noticeAlert(model)
     }
 
     private var header: some View {

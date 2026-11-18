@@ -12,16 +12,19 @@ struct AppView: View {
             Sidebar(model: model, state: sidebar, compact: false)
             Divider().background(Brand.line)
 
-            Group {
-                switch sidebar.section {
-                case .files: FilesSection(model: model, compact: false)
-                case .transfers: TransfersSection(model: model)
-                case .drive: DriveSection(model: model)
-                case .settings: SettingsSection(model: model)
+            VStack(spacing: 0) {
+                ActivityStrip(model: model)
+                Group {
+                    switch sidebar.section {
+                    case .files: FilesSection(model: model, compact: false)
+                    case .transfers: TransfersSection(model: model)
+                    case .drive: DriveSection(model: model)
+                    case .settings: SettingsSection(model: model)
+                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Brand.canvas)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Brand.canvas)
         }
         .onDrop(of: [.fileURL], isTargeted: $drop.targeted) { model.drop($0) }
         .overlay {
@@ -31,6 +34,7 @@ struct AppView: View {
                     .padding(6)
             }
         }
+        .noticeAlert(model)
     }
 }
 

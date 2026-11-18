@@ -215,7 +215,7 @@ A few things work differently from a normal disk:
 If you would rather click than type, there is a small Mac app: an icon in the menu bar and a window with your files. Download `Taasant.zip` from the [releases page](https://github.com/vedantlavale/taasant/releases/latest), unzip it and drag `Taasant.app` to Applications.
 
 - **The menu bar icon** shows whether the drive is in Finder, and connects or ejects it. **Start at login** brings the drive back every time you log in.
-- **The window** (menu → Show files…) lists what you have stored. Drop files on it to upload them, and use the buttons on a file to download or delete it. While you copy files to the drive in Finder, the menu bar icon shows the percent that has reached Telegram, and the window shows how many bytes. Open the app again from Finder or Spotlight if you cannot see the icon.
+- **The window** (menu → Show files…) has four sections: Files, Transfers, Drive and Settings. Drop files on it to upload them. A delete asks for confirmation in a dialog, and files can be filtered by kind and sorted by date, name or size. The menu bar popover has the same sections in a compact form, with the file list, its filters, and a bar that follows an upload or a delete. While you copy files to the drive in Finder, the menu bar icon shows the percent that has reached Telegram. Open the app again from Finder or Spotlight if you cannot see the icon.
 - **The first time**, the window offers to set taasant up. That opens a terminal and asks the same questions as `taasant` does, because the bot token and the key are best pasted in there.
 
 The app has the `taasant` program inside it and does everything through it, so the app and the terminal always see the same files. It has no developer certificate either, so the first time macOS says it cannot verify it. Press **Done**, then go to System Settings → Privacy & Security and press **Open Anyway**. Or run `xattr -dr com.apple.quarantine /Applications/Taasant.app`.
@@ -232,7 +232,7 @@ id=$(taasant upload backup.tar)
 
 Set `NO_COLOR=1` if you want plain text in a terminal too.
 
-Add `--json` to `list`, `upload`, `download` or `delete` for output a program can read. `taasant list --json` prints all files as one array, and an upload or download prints `{"done":..,"total":..}` as it goes. This is what the Mac app uses.
+Add `--json` to `list`, `upload`, `download` or `delete` for output a program can read. `taasant list --json` prints all files as one array, and an upload, download or delete prints `{"done":..,"total":..}` as it goes. This is what the Mac app uses.
 
 ### You don't have to type the whole name
 

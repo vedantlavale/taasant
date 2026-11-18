@@ -1,8 +1,71 @@
 import AppKit
 import SwiftUI
 
+enum FileFilter: String, CaseIterable, Identifiable {
+    case all, image, video, audio, document, other
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .all: return "All files"
+        case .image: return "Images"
+        case .video: return "Video"
+        case .audio: return "Audio"
+        case .document: return "Documents"
+        case .other: return "Other"
+        }
+    }
+
+    func matches(_ file: StoredFile) -> Bool {
+        self == .all || file.kind.rawValue == rawValue
+    }
+}
+
+enum FileSort: String, CaseIterable, Identifiable {
+    case newest, oldest, name, largest
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .newest: return "Newest"
+        case .oldest: return "Oldest"
+        case .name: return "Name"
+        case .largest: return "Largest"
+        }
+    }
+
+    func apply(to files: [StoredFile]) -> [StoredFile] {
+        switch self {
+        case .newest:
+            return files.sorted {
+                $0.uploaded == $1.uploaded
+                    ? $0.name.localizedStandardCompare($1.name) == .orderedAscending
+                    : $0.uploaded > $1.uploaded
+            }
+        case .oldest:
+            return files.sorted {
+                $0.uploaded == $1.uploaded
+                    ? $0.name.localizedStandardCompare($1.name) == .orderedAscending
+                    : $0.uploaded < $1.uploaded
+            }
+        case .name:
+            return files.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        case .largest:
+            return files.sorted {
+                $0.size == $1.size
+                    ? $0.name.localizedStandardCompare($1.name) == .orderedAscending
+                    : $0.size > $1.size
+            }
+        }
+    }
+}
+
 final class FilesUI: ObservableObject {
     @Published var search = ""
+    @Published var filter: FileFilter = .all
+    @Published var sort: FileSort = .newest
     @Published var asked: StoredFile?
 }
 
@@ -12,22 +75,44 @@ struct FilesSection: View {
     @StateObject private var ui = FilesUI()
 
     private var shown: [StoredFile] {
-        ui.search.isEmpty ? model.files : model.files.filter { $0.name.localizedCaseInsensitiveContains(ui.search) }
+        var found = model.files.filter { ui.filter.matches($0) }
+        if !ui.search.isEmpty {
+            found = found.filter { $0.name.localizedCaseInsensitiveContains(ui.search) }
+        }
+        return ui.sort.apply(to: found)
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
+            HStack(spacing: 8) {
                 if !compact {
                     TextField("Search", text: $ui.search).textFieldStyle(.roundedBorder)
                 }
-                Spacer()
-                Button("Upload…") { chooseFiles() }
+                Spacer(minLength: 0)
+                Button {
+                    Task { await model.reload() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(Brand.muted)
+                .help("Refresh")
+                if !compact {
+                    Button("Upload…") { chooseFiles() }
+                }
             }
-            .padding(12)
+            .padding(.horizontal, 12)
+            .padding(.top, 12)
+            .padding(.bottom, model.files.isEmpty ? 12 : 6)
 
             if compact {
                 dropZone
+            }
+
+            if !model.files.isEmpty {
+                filterBar
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 8)
             }
 
             if compact && model.hiddenInMenuBar {
@@ -58,21 +143,70 @@ struct FilesSection: View {
                     }
                 }
             }
-
-            if let message = model.message {
-                Text(message).font(.caption).foregroundStyle(Brand.danger)
-                    .padding(.horizontal, 12).padding(.bottom, 8)
-            }
         }
-        .confirmationDialog("Delete \(ui.asked?.name ?? "")?", isPresented: Binding(
+        .alert("Delete this file?", isPresented: Binding(
             get: { ui.asked != nil },
             set: { if !$0 { ui.asked = nil } }
         )) {
+            Button("Cancel", role: .cancel) { ui.asked = nil }
             Button("Delete", role: .destructive) {
                 if let file = ui.asked { model.delete(file) }
+                ui.asked = nil
             }
         } message: {
-            Text("It is taken off the drive. Telegram keeps its encrypted messages if the file is older than 48 hours.")
+            Text(deleteMessage)
+        }
+    }
+
+    private var deleteMessage: String {
+        let name = ui.asked?.name ?? "The file"
+        return "“\(name)” is taken off the drive. Telegram keeps its encrypted messages if the file is older than 48 hours."
+    }
+
+    private var filterBar: some View {
+        HStack(spacing: 12) {
+            Menu {
+                ForEach(FileFilter.allCases) { filter in
+                    Button {
+                        ui.filter = filter
+                    } label: {
+                        if ui.filter == filter {
+                            Label(filter.title, systemImage: "checkmark")
+                        } else {
+                            Text(filter.title)
+                        }
+                    }
+                }
+            } label: {
+                Label(ui.filter.title, systemImage: "line.3.horizontal.decrease.circle")
+                    .font(.caption)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("Show one kind of file")
+
+            Menu {
+                ForEach(FileSort.allCases) { sort in
+                    Button {
+                        ui.sort = sort
+                    } label: {
+                        if ui.sort == sort {
+                            Label(sort.title, systemImage: "checkmark")
+                        } else {
+                            Text(sort.title)
+                        }
+                    }
+                }
+            } label: {
+                Label(ui.sort.title, systemImage: "arrow.up.arrow.down")
+                    .font(.caption)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("Order the files")
+
+            Spacer(minLength: 0)
+            Text("\(shown.count)").font(.caption2).foregroundStyle(Brand.muted)
         }
     }
 
@@ -125,9 +259,6 @@ struct TransfersSection: View {
                 Text("Nothing is transferring.").foregroundStyle(Brand.muted)
                 Spacer()
             }
-            if let message = model.message {
-                Text(message).font(.caption).foregroundStyle(Brand.danger).padding(12)
-            }
         }
     }
 }
@@ -169,10 +300,6 @@ struct DriveSection: View {
                     .font(.caption).foregroundStyle(Brand.muted)
                 Text("Drag files in to store them. Drag out or open to get them back.")
                     .font(.caption).foregroundStyle(Brand.muted)
-
-                if let message = model.message {
-                    Text(message).font(.caption).foregroundStyle(Brand.danger)
-                }
             }
             .padding(.horizontal, 14)
             Spacer()
