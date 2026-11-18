@@ -52,9 +52,34 @@ enum CLI {
         return URL(fileURLWithPath: "/usr/local/bin/taasant")
     }
 
+    // Handle lets a caller stop a run that is going on. It sends the same
+    // Ctrl-C a terminal would, so taasant cleans up: an upload that is
+    // cancelled gives its parts back instead of leaving them in the bucket.
+    final class Handle: @unchecked Sendable {
+        private let lock = NSLock()
+        private var process: Process?
+        private var cancelled = false
+
+        fileprivate func attach(_ started: Process) {
+            lock.lock()
+            process = started
+            let stop = cancelled
+            lock.unlock()
+            if stop { started.interrupt() }
+        }
+
+        func cancel() {
+            lock.lock()
+            cancelled = true
+            let running = process
+            lock.unlock()
+            running?.interrupt()
+        }
+    }
+
     // run starts taasant and returns what it printed. onLine hears each line
     // as it comes, which is how progress arrives.
-    static func run(_ arguments: [String], onLine: @escaping (String) -> Void = { _ in }) async throws -> String {
+    static func run(_ arguments: [String], handle: Handle? = nil, onLine: @escaping (String) -> Void = { _ in }) async throws -> String {
         try await withCheckedThrowingContinuation { continuation in
             let process = Process()
             process.executableURL = binary
@@ -85,6 +110,7 @@ enum CLI {
             }
             do {
                 try process.run()
+                handle?.attach(process)
             } catch {
                 continuation.resume(throwing: CLIError(text: "taasant could not be started: \(error.localizedDescription)"))
             }

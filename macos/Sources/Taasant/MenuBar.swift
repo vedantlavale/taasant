@@ -18,6 +18,11 @@ final class MenuBar: NSObject {
         panel.onClose = { Model.shared.popoverOpen = false }
 
         guard let button = item.button else { return }
+        // The overlay below takes the mouse, so this is for the keyboard and
+        // for VoiceOver, which press the button itself.
+        button.target = self
+        button.action = #selector(togglePanel)
+        button.setAccessibilityLabel("taasant")
         let target = DropTarget(frame: button.bounds)
         target.autoresizingMask = [.width, .height]
         target.clicked = { [weak self] in self?.toggle() }
@@ -38,6 +43,8 @@ final class MenuBar: NSObject {
         }
         refresh()
     }
+
+    @objc private func togglePanel() { toggle() }
 
     func toggle() { panel.isVisible ? close() : show() }
 

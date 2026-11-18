@@ -28,76 +28,67 @@ final class SidebarState: ObservableObject {
     @Published var section: AppSection = .files
 }
 
-// One sidebar for the window and the menu bar. The compact form is an icon
-// rail, so the popover still has room for the files themselves.
+// The window's sidebar: the four sections, and under them how things stand.
 struct Sidebar: View {
     @ObservedObject var model: Model
     @ObservedObject var state: SidebarState
-    let compact: Bool
+
+    private var activeJobs: Int { model.jobs.filter { !$0.finished && $0.error == nil }.count + (model.driveUpload == nil ? 0 : 1) }
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
-                Brand.ant().frame(width: compact ? 26 : 34, height: compact ? 14 : 18)
-                if !compact {
-                    Text("taasant").font(.headline).foregroundStyle(Brand.text)
-                }
+                Brand.ant().frame(width: 34, height: 18)
+                Text("taasant").font(.headline).foregroundStyle(Brand.text)
             }
-            .frame(maxWidth: .infinity, minHeight: compact ? 46 : 62)
-            .padding(.horizontal, compact ? 6 : 14)
-
-            Divider().background(Brand.line)
+            .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+            .padding(.horizontal, 16)
 
             VStack(spacing: 3) {
                 ForEach(AppSection.allCases) { section in
                     Button { state.section = section } label: {
-                        HStack(spacing: compact ? 0 : 10) {
-                            Image(systemName: section.symbol)
-                                .frame(width: compact ? 24 : 20)
-                            if !compact {
-                                Text(section.title)
-                                Spacer()
+                        HStack(spacing: 10) {
+                            Image(systemName: section.symbol).frame(width: 20)
+                            Text(section.title)
+                            Spacer()
+                            if section == .transfers && activeJobs > 0 {
+                                Text("\(activeJobs)")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(Brand.canvas)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 1)
+                                    .background(Capsule().fill(Brand.accent))
                             }
                         }
                         .padding(.vertical, 8)
-                        .padding(.horizontal, compact ? 0 : 10)
-                        .frame(maxWidth: .infinity, alignment: compact ? .center : .leading)
-                        .background(state.section == section
-                                    ? Color.white.opacity(0.14)
-                                    : Color.clear)
+                        .padding(.horizontal, 10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(state.section == section ? Color.white.opacity(0.14) : Color.clear)
                         .foregroundStyle(state.section == section ? Brand.accent : Brand.muted)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .help(section.title)
                 }
             }
-            .padding(compact ? 6 : 10)
+            .padding(.horizontal, 10)
 
             Spacer()
 
-            if compact {
-                Button { model.hiddenInMenuBar.toggle() } label: {
-                    Image(systemName: model.hiddenInMenuBar ? "eye.slash" : "eye")
-                        .frame(width: 24, height: 24)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    StatusDot(on: model.mounted)
+                    Text(model.mounted ? "Drive connected" : "Drive off")
                 }
-                .buttonStyle(.plain)
+                .font(.caption)
                 .foregroundStyle(Brand.muted)
-                .help(model.hiddenInMenuBar ? "Show files in the menu bar" : "Hide files in the menu bar")
-                .padding(.bottom, 8)
-            } else {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(model.configured ? "Ready" : "Set up needed")
-                        .font(.caption)
-                        .foregroundStyle(model.configured ? Brand.success : Brand.danger)
-                    Text("version \(model.version)")
-                        .font(.caption2)
-                        .foregroundStyle(Brand.muted)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(14)
+                Text(model.configured ? "version \(model.version)" : "Set up needed")
+                    .font(.caption2)
+                    .foregroundStyle(model.configured ? Brand.muted : Brand.danger)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(16)
         }
-        .frame(width: compact ? 52 : 176)
+        .frame(width: 184)
     }
 }

@@ -7,6 +7,52 @@ struct StoredFile: Identifiable, Hashable, Decodable {
     let id: String
     let size: Int64
     let uploaded: Date
+    // Where the file is stored. Files from before there were several places
+    // have none written down, and are in Telegram.
+    let backend: String?
+
+    var place: String { backend ?? "telegram" }
+}
+
+// A place files can be stored, as the settings file lists it.
+struct Place: Identifiable, Hashable {
+    let name: String
+    let type: String
+    // What tells two places of one kind apart: a bucket and its server.
+    let detail: String
+
+    var id: String { name }
+
+    var label: String {
+        switch type {
+        case "telegram": return "Telegram"
+        case "s3": return "S3 bucket"
+        default: return type
+        }
+    }
+
+    // The places and the default one, read from the settings file. The keys
+    // and tokens in it are never read into the app.
+    static func load(from url: URL) -> (places: [Place], standard: String) {
+        guard let data = try? Data(contentsOf: url),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return ([], "") }
+        var found: [Place] = []
+        if let backends = json["backends"] as? [String: [String: Any]] {
+            for (name, fields) in backends.sorted(by: { $0.key < $1.key }) {
+                let type = fields["type"] as? String ?? ""
+                let host = (fields["endpoint"] as? String).flatMap { URL(string: $0)?.host } ?? ""
+                let bucket = fields["bucket"] as? String ?? ""
+                found.append(Place(name: name, type: type, detail: type == "s3" ? "\(bucket) on \(host)" : "a bot of your own"))
+            }
+        } else if json["token"] != nil {
+            // Settings from before there were several places.
+            found.append(Place(name: "telegram", type: "telegram", detail: "a bot of your own"))
+        }
+        let standard = json["default"] as? String ?? (found.first?.name ?? "")
+        // The default comes first, as it is the one that matters.
+        found.sort { ($0.name == standard ? 0 : 1, $0.name) < ($1.name == standard ? 0 : 1, $1.name) }
+        return (found, standard)
+    }
 }
 
 enum FileKind: String {
@@ -42,7 +88,7 @@ struct Notice: Identifiable {
 }
 
 // What Finder is copying to the drive, as the drive reports it.
-struct DriveUpload: Decodable {
+struct DriveUpload: Decodable, Equatable {
     let files: [String]
     let done: Int64
     let total: Int64
@@ -96,6 +142,7 @@ struct Job: Identifiable {
     var error: String?
     var note: String?
     var finished = false
+    var cancelled = false
     var reveal: URL?
 }
 
@@ -120,21 +167,40 @@ final class Model: ObservableObject {
     @Published var mounted = false
     @Published var autostart = false
     @Published var configured = true
+    @Published var places: [Place] = []
+    @Published var standard = ""
+    @Published var autostartBusy = false
+    // Why the list of files could not be read, when it could not.
+    @Published var listError: String?
     @Published var notice: Notice?
     @Published var driveUpload: DriveUpload?
     // A temporary view setting: hiding files here changes nothing on disk or
     // in Telegram, and the window keeps showing them.
     @Published var hiddenInMenuBar = false
+    // The words for where new files go, in the places that talk about it.
+    var standardLabel: String {
+        standard.isEmpty || places.count <= 1 ? (places.first?.label ?? "your place") : standard
+    }
     var windowOpen = false
     var popoverOpen = false
 
     private var working = false
+    private var running: [UUID: CLI.Handle] = [:]
 
-    private let progress = home.appendingPathComponent("Library/Application Support/taas/index.json.progress")
-    private let config = home.appendingPathComponent("Library/Application Support/taas/config.json")
+    // Where taasant keeps things. TAAS_CONFIG and TAAS_INDEX move them, for
+    // the program and so for the app, which has to look in the same places.
+    private static func path(_ variable: String, _ name: String) -> URL {
+        if let custom = ProcessInfo.processInfo.environment[variable], !custom.isEmpty {
+            return URL(fileURLWithPath: custom)
+        }
+        return home.appendingPathComponent("Library/Application Support/taas/" + name)
+    }
+    private let config = Model.path("TAAS_CONFIG", "config.json")
+    private let index = Model.path("TAAS_INDEX", "index.json")
+    private var progress: URL { URL(fileURLWithPath: index.path + ".progress") }
 
     var settingsPath: String { config.path }
-    var indexFile: String { home.appendingPathComponent("Library/Application Support/taas/index.json").path }
+    var indexFile: String { index.path }
     var version: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev" }
 
     // The one thing worth showing above the files: the job that is running,
@@ -162,6 +228,7 @@ final class Model: ObservableObject {
 
     init() {
         configured = FileManager.default.fileExists(atPath: config.path)
+        (places, standard) = Place.load(from: config)
         // Once a second, so a copy in Finder is followed closely.
         Task {
             while true {
@@ -185,9 +252,15 @@ final class Model: ObservableObject {
     // tick looks at everything the screen shows. The list of files is only
     // read while the window or the popover is open.
     func tick() async {
-        configured = FileManager.default.fileExists(atPath: config.path)
-        mounted = FileManager.default.fileExists(atPath: driveFolder)
-        autostart = FileManager.default.fileExists(atPath: plist.path)
+        // A @Published value tells every screen to draw again when it is set,
+        // even to what it already was, so only a change is set.
+        let exists = { FileManager.default.fileExists(atPath: $0) }
+        if configured != exists(config.path) { configured.toggle() }
+        let loaded = Place.load(from: config)
+        if places != loaded.places { places = loaded.places }
+        if standard != loaded.standard { standard = loaded.standard }
+        if mounted != exists(driveFolder) { mounted.toggle() }
+        if autostart != exists(plist.path) { autostart.toggle() }
         if windowOpen || popoverOpen { await reload() }
     }
 
@@ -199,10 +272,10 @@ final class Model: ObservableObject {
               let data = try? Data(contentsOf: progress),
               let found = try? JSONDecoder().decode(DriveUpload.self, from: data)
         else {
-            driveUpload = nil
+            if driveUpload != nil { driveUpload = nil }
             return
         }
-        driveUpload = found
+        if driveUpload != found { driveUpload = found }
     }
 
     // Go writes the time with fractions of a second, which the plain
@@ -216,14 +289,22 @@ final class Model: ObservableObject {
     }
 
     func reload() async {
-        guard let text = try? await CLI.run(["list", "--json"]) else { return }
+        let text: String
+        do { text = try await CLI.run(["list", "--json"]) } catch {
+            listError = error.localizedDescription
+            return
+        }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in
             let text = try decoder.singleValueContainer().decode(String.self)
             return Self.date(text)
         }
-        if let found = try? decoder.decode([StoredFile].self, from: Data(text.utf8)) {
-            files = found.sorted { $0.uploaded > $1.uploaded }
+        do {
+            let found = try decoder.decode([StoredFile].self, from: Data(text.utf8)).sorted { $0.uploaded > $1.uploaded }
+            if found != files { files = found }
+            if listError != nil { listError = nil }
+        } catch {
+            listError = "The list of files could not be read."
         }
     }
 
@@ -237,6 +318,15 @@ final class Model: ObservableObject {
         } else {
             do { try CLI.start(["mount", "background"]) } catch {
                 notice = Notice(title: "Could not start the drive", text: error.localizedDescription)
+                return
+            }
+        }
+        Task {
+            try? await Task.sleep(nanoseconds: 10_000_000_000)
+            await tick()
+            if !mounted && notice == nil {
+                notice = Notice(title: "The drive did not start",
+                                text: "Finder did not get the drive. The log in Settings may say why, for instance that another program has port 8738.")
             }
         }
     }
@@ -255,7 +345,10 @@ final class Model: ObservableObject {
     func openDrive() { NSWorkspace.shared.open(URL(fileURLWithPath: driveFolder)) }
 
     func setAutostart(_ on: Bool) {
+        guard !autostartBusy else { return }
+        autostartBusy = true
         Task {
+            defer { autostartBusy = false }
             do {
                 _ = try await CLI.run(on ? ["autostart"] : ["autostart", "off"])
                 if on { try? SMAppService.mainApp.register() } else { try? await SMAppService.mainApp.unregister() }
@@ -269,17 +362,24 @@ final class Model: ObservableObject {
     // If the app was moved, the login job still points at the old copy of
     // taasant. Starting it again points it at this one.
     private func repointAutostart() {
-        guard autostart, let text = try? String(contentsOf: plist, encoding: .utf8),
-              !text.contains(CLI.binary.path) else { return }
+        guard autostart, let text = try? String(contentsOf: plist, encoding: .utf8) else { return }
+        // The plist is XML, so an apostrophe or an ampersand in the path is
+        // written as an entity; without this a path such as Bob's Apps never
+        // matched, and the drive was restarted at every launch.
+        let escaped = [("&", "&amp;"), ("<", "&lt;"), (">", "&gt;"), ("\"", "&#34;"), ("'", "&#39;")]
+            .reduce(CLI.binary.path) { path, pair in path.replacingOccurrences(of: pair.0, with: pair.1) }
+        guard !text.contains(escaped) else { return }
         setAutostart(true)
     }
 
-    // Setting up asks questions, so it needs a terminal.
+    // Setting up asks questions, so it needs a terminal. With a place already,
+    // it adds another one.
     func setUp() {
         let script = FileManager.default.temporaryDirectory.appendingPathComponent("taasant-setup.command")
         // A path can hold an apostrophe, as in /Applications/Bob's Apps/.
         let quoted = "'" + CLI.binary.path.replacingOccurrences(of: "'", with: "'\\''") + "'"
-        try? "#!/bin/sh\nexec \(quoted)\n".write(to: script, atomically: true, encoding: .utf8)
+        let command = configured ? "\(quoted) setup" : quoted
+        try? "#!/bin/sh\nexec \(command)\n".write(to: script, atomically: true, encoding: .utf8)
         try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path)
         NSWorkspace.shared.open(script)
     }
@@ -302,10 +402,11 @@ final class Model: ObservableObject {
 
     // MARK: files
 
-    func upload(_ urls: [URL]) {
+    // place is where the files go, or the default one when it is nil.
+    func upload(_ urls: [URL], to place: String? = nil) {
         for url in urls {
-            // The ID is what the program is told, never the name.
-            enqueue(Job(kind: .upload, title: url.lastPathComponent, arguments: ["upload", url.path, "--json"]))
+            let target = place.map { ["--to", $0] } ?? []
+            enqueue(Job(kind: .upload, title: url.lastPathComponent, arguments: ["upload"] + target + [url.path, "--json"]))
         }
     }
 
@@ -352,6 +453,34 @@ final class Model: ObservableObject {
 
     func clearFinished() { jobs.removeAll { $0.finished || $0.error != nil } }
 
+    // A job that has not started is simply dropped. One that is running is
+    // sent a Ctrl-C, and the row says it was cancelled once it has stopped.
+    func cancel(_ job: Job) {
+        guard let i = jobs.firstIndex(where: { $0.id == job.id }) else { return }
+        if let handle = running[job.id] {
+            jobs[i].cancelled = true
+            handle.cancel()
+        } else {
+            jobs.remove(at: i)
+        }
+    }
+
+    var isBusy: Bool { jobs.contains { !$0.finished && $0.error == nil } || driveUpload != nil }
+
+    // Quitting stops what is moving, so a person who is in the middle of it is asked.
+    func quit() {
+        guard isBusy else { NSApp.terminate(nil); return }
+        let alert = NSAlert()
+        alert.messageText = "Quit taasant?"
+        alert.informativeText = "Files that are being stored or saved right now will stop, and the ones waiting will not be sent."
+        alert.addButton(withTitle: "Keep going")
+        alert.addButton(withTitle: "Quit")
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertSecondButtonReturn else { return }
+        running.values.forEach { $0.cancel() }
+        NSApp.terminate(nil)
+    }
+
     // One file at a time: two uploads would only share the same connection.
     private func enqueue(_ job: Job) {
         jobs.append(job)
@@ -369,8 +498,11 @@ final class Model: ObservableObject {
         func change(_ edit: (inout Job) -> Void) {
             if let i = jobs.firstIndex(where: { $0.id == job.id }) { edit(&jobs[i]) }
         }
+        let handle = CLI.Handle()
+        running[job.id] = handle
+        defer { running[job.id] = nil }
         do {
-            let output = try await CLI.run(job.arguments) { line in
+            let output = try await CLI.run(job.arguments, handle: handle) { line in
                 guard let data = line.data(using: .utf8),
                       let numbers = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                       let done = numbers["done"] as? Double, let total = numbers["total"] as? Double, total > 0
@@ -388,6 +520,10 @@ final class Model: ObservableObject {
                 notice = Notice(title: "Deleted \(job.title)", text: note)
             }
         } catch {
+            if jobs.first(where: { $0.id == job.id })?.cancelled == true {
+                change { $0.error = "Cancelled" }
+                return
+            }
             change { $0.error = error.localizedDescription }
             notice = Notice(title: job.kind.failed, text: error.localizedDescription)
         }

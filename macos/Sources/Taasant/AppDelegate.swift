@@ -40,7 +40,35 @@ final class FilesWindow: NSObject, NSWindowDelegate {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    // Without a main menu, Cmd-C and Cmd-V do nothing in the search field and
+    // Cmd-W and Cmd-Q do nothing anywhere, as the key equivalents live there.
+    @MainActor private func makeMainMenu() {
+        let main = NSMenu()
+        func submenu(_ title: String, _ items: [(String, Selector?, String)]) {
+            let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+            let menu = NSMenu(title: title)
+            for (name, action, key) in items {
+                if name == "-" { menu.addItem(.separator()); continue }
+                menu.addItem(NSMenuItem(title: name, action: action, keyEquivalent: key))
+            }
+            item.submenu = menu
+            main.addItem(item)
+        }
+        submenu("taasant", [("Quit taasant", #selector(quitApp), "q")])
+        submenu("Edit", [
+            ("Undo", Selector(("undo:")), "z"), ("Redo", Selector(("redo:")), "Z"), ("-", nil, ""),
+            ("Cut", #selector(NSText.cut(_:)), "x"), ("Copy", #selector(NSText.copy(_:)), "c"),
+            ("Paste", #selector(NSText.paste(_:)), "v"), ("Select All", #selector(NSText.selectAll(_:)), "a"),
+        ])
+        submenu("Window", [("Minimize", #selector(NSWindow.performMiniaturize(_:)), "m"), ("Close", #selector(NSWindow.performClose(_:)), "w")])
+        main.items.first?.submenu?.items.forEach { $0.target = self }
+        NSApp.mainMenu = main
+    }
+
+    @MainActor @objc private func quitApp() { Model.shared.quit() }
+
     @MainActor func applicationDidFinishLaunching(_ notification: Notification) {
+        makeMainMenu()
         MenuBar.shared.start()
         // The first time there is nothing to show but how to set up.
         if !Model.shared.configured { FilesWindow.shared.show() }

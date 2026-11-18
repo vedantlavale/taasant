@@ -12,7 +12,7 @@ final class GlassPanel: NSPanel {
     var closesOnFocusLoss = true
     var onClose: () -> Void = {}
 
-    private static let size = NSSize(width: 400, height: 440)
+    private static let size = NSSize(width: 340, height: 420)
     private static let radius: CGFloat = 28
 
     init(model: Model) {
@@ -26,7 +26,7 @@ final class GlassPanel: NSPanel {
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         isReleasedWhenClosed = false
         appearance = NSAppearance(named: .darkAqua)
-        contentView = Glass.wrap(PopoverView(model: model), radius: Self.radius)
+        contentView = Glass.wrap(MenuBarView(model: model), radius: Self.radius)
 
         NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification, object: self, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {

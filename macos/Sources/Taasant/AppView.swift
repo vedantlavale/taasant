@@ -10,14 +10,15 @@ struct AppView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            Sidebar(model: model, state: sidebar, compact: false)
+            Sidebar(model: model, state: sidebar)
             Divider().background(Brand.line)
 
             VStack(spacing: 0) {
                 ActivityStrip(model: model)
+                if let problem = model.listError { problemBanner(problem) }
                 Group {
                     switch sidebar.section {
-                    case .files: FilesSection(model: model, compact: false)
+                    case .files: FilesSection(model: model)
                     case .transfers: TransfersSection(model: model)
                     case .drive: DriveSection(model: model)
                     case .settings: SettingsSection(model: model)
@@ -37,6 +38,22 @@ struct AppView: View {
             }
         }
         .noticeAlert(model)
+    }
+}
+
+extension AppView {
+    // The list could not be read. The files that are shown are the last ones
+    // that could, and saying so beats a list that looks empty.
+    fileprivate func problemBanner(_ text: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Brand.danger)
+            Text(text).font(.caption).foregroundStyle(Brand.text).lineLimit(2)
+            Spacer()
+            Button("Try again") { Task { await model.reload() } }.controlSize(.small)
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 8)
+        .background(Brand.danger.opacity(0.14))
     }
 }
 
