@@ -1,8 +1,9 @@
 import AppKit
 import SwiftUI
 
-// The look the menu-bar panel and the window share: clear glass that bends
-// what is behind it, with the app drawn on top in light text.
+// The look the menu-bar panel and the window share: clear glass for the edge,
+// the rim and the colour of what is behind, over a blur that keeps that from
+// competing with the text. The app is drawn on top in light text.
 enum Glass {
     // wrap puts a hosted view on glass. radius is the corner of the glass, 0 when
     // the window already cuts the corners.
@@ -18,11 +19,31 @@ enum Glass {
             glass.contentView = hosted
             glass.cornerRadius = radius
             // Clear glass is the one that bends what is behind it. The regular
-            // one only blurs it. A tint, and the dark layer the screens put
-            // behind their content, keep the text readable.
+            // one only blurs it, and clear alone shows a page of code through
+            // the text, so a blur sits under it and a tint over it.
             glass.style = .clear
-            glass.tintColor = NSColor.black.withAlphaComponent(0.45)
-            return glass
+            glass.tintColor = NSColor.black.withAlphaComponent(0.3)
+            let container = NSView()
+            let underlay = NSVisualEffectView()
+            underlay.appearance = NSAppearance(named: .darkAqua)
+            underlay.material = .hudWindow
+            underlay.blendingMode = .behindWindow
+            underlay.state = .active
+            underlay.alphaValue = 0.85
+            underlay.wantsLayer = true
+            underlay.layer?.cornerRadius = radius
+            underlay.layer?.masksToBounds = true
+            for v in [underlay, glass] {
+                v.translatesAutoresizingMaskIntoConstraints = false
+                container.addSubview(v)
+                NSLayoutConstraint.activate([
+                    v.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+                    v.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+                    v.topAnchor.constraint(equalTo: container.topAnchor),
+                    v.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+                ])
+            }
+            return container
         }
 
         // Older Macs have no glass, only the vibrant material.
@@ -49,5 +70,8 @@ enum Glass {
 extension View {
     // Clear glass shows what is behind it as it is, so a dark layer keeps the
     // light text readable over a white page too.
-    func glassScrim() -> some View { background(Color.black.opacity(0.25)) }
+    func glassScrim() -> some View { background(Color.black.opacity(0.2)) }
+    // The list sits on a darker pane than the sidebar, so reading it never
+    // competes with whatever is behind the window.
+    func glassPane() -> some View { background(Color.black.opacity(0.3)) }
 }

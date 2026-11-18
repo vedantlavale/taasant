@@ -23,6 +23,7 @@ struct PopoverView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .glassPane()
             }
         }
         .glassScrim()

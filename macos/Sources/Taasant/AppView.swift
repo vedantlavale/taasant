@@ -25,6 +25,7 @@ struct AppView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+            .glassPane()
         }
         .glassScrim()
         .onDrop(of: [.fileURL], isTargeted: $drop.targeted) { model.drop($0) }
