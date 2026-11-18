@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>taasant: free encrypted file storage in a Telegram chat</title>
-<meta name="description" content="taasant is a free, open source command line tool that keeps your files in a Telegram chat, encrypted on your computer with AES-256-GCM before they are uploaded.">
+<title>taasant: encrypted file storage in Telegram or your own bucket</title>
+<meta name="description" content="taasant is a free, open source Mac app and command line tool that keeps your files encrypted on your computer and stores them in a Telegram chat, or in your own Cloudflare R2, Amazon S3 or MinIO bucket with AES-256-GCM before they are uploaded.">
 <link rel="canonical" href="https://taasant.vedantworks.com/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="taasant">
-<meta property="og:title" content="taasant: free encrypted file storage in a Telegram chat">
-<meta property="og:description" content="taasant is a free, open source command line tool that keeps your files in a Telegram chat, encrypted on your computer with AES-256-GCM before they are uploaded.">
+<meta property="og:title" content="taasant: encrypted file storage in Telegram or your own bucket">
+<meta property="og:description" content="taasant is a free, open source Mac app and command line tool that keeps your files encrypted on your computer and stores them in a Telegram chat, or in your own Cloudflare R2, Amazon S3 or MinIO bucket with AES-256-GCM before they are uploaded.">
 <meta property="og:url" content="https://taasant.vedantworks.com/">
 <meta property="og:image" content="https://taasant.vedantworks.com/og.png">
 <meta name="twitter:card" content="summary_large_image">
@@ -36,7 +36,7 @@
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "taasant",
-  "description": "taasant is a free, open source command line tool that keeps your files in a Telegram chat, encrypted on your computer with AES-256-GCM before they are uploaded.",
+  "description": "taasant is a free, open source Mac app and command line tool that keeps your files encrypted on your computer and stores them in a Telegram chat, or in your own Cloudflare R2, Amazon S3 or MinIO bucket with AES-256-GCM before they are uploaded.",
   "url": "https://taasant.vedantworks.com/",
   "applicationCategory": "UtilitiesApplication",
   "operatingSystem": "macOS, Linux, Windows",
@@ -62,10 +62,26 @@
   "mainEntity": [
     {
       "@type": "Question",
+      "name": "Is there a Mac app?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. Download Taasant.dmg, open it and drag the app to Applications. It puts an icon in the menu bar to drop files on, a window to manage them, and your files as a drive in Finder. It is for macOS 13 or newer, and it has the command-line program inside it. You can use the app, the command line, or both."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I use my own bucket instead of Telegram?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. taasant works with Cloudflare R2, Amazon S3, MinIO and any service with an S3 address. Files are encrypted on your computer first, as with Telegram. You can keep several places and choose one for each upload."
+      }
+    },
+    {
+      "@type": "Question",
       "name": "Is taasant free?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes. taasant is free and open source under the MIT license, and it uses the file storage Telegram gives every bot at no cost. There is no paid plan."
+        "text": "Yes. taasant is free and open source under the MIT license. With Telegram, it uses the file storage Telegram gives every bot at no cost. If you choose your own bucket on Cloudflare R2, Amazon S3 or MinIO, that storage is billed by its provider, not by taasant. There is no paid plan."
       }
     },
     {
@@ -97,7 +113,7 @@
       "name": "How big can a file be?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "taasant sets no limit of its own. A Telegram bot can only download files up to 20 MB, so taasant cuts every file into 19 MiB parts and puts them back together on download. Very large files use a lot of memory while they download."
+        "text": "taasant sets no limit of its own for Telegram: a bot can only download files up to 20 MB, so taasant cuts every file into 19 MiB parts and puts them back together on download, and very large files use a lot of memory while they download. In a bucket, one file can be up to 156 GiB."
       }
     },
     {
@@ -113,7 +129,7 @@
       "name": "Can I use it on two computers?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Each computer keeps its own list of uploaded files, and the lists are not synced. With the same bot, chat and key on both, each one only sees the files it uploaded itself."
+        "text": "Each computer keeps its own list of uploaded files, and the lists are not synced. With the same place and key on both, each one only sees the files it uploaded itself. taasant keeps an encrypted backup of the list in your default place, and you can restore it on another computer."
       }
     },
     {
@@ -240,12 +256,14 @@
 <main>
   <div class="wrap hero">
     <div>
-      <h1>An encrypted drive in your Telegram chat</h1>
-      <p class="lede">Telegram lets a bot store files in a chat for free. taasant turns that into a drive you use from the terminal, and encrypts every file before it leaves your computer.</p>
+      <h1>An encrypted drive for your files</h1>
+      <p class="lede">taasant encrypts every file on your computer before it leaves, then stores it in a Telegram chat for free, or in your own bucket on Cloudflare R2, Amazon S3 or MinIO. Use the Mac app, or the command line.</p>
       <div class="btns">
-        <a class="btn primary" href="docs.html#install">Install taasant</a>
+        <a class="btn primary" href="https://github.com/vedantlavale/taasant/releases/latest/download/Taasant.dmg">Download the Mac app</a>
+        <a class="btn" href="docs.html#install-cli">Get the command line</a>
         <a class="btn" href="docs.html">Read the docs</a>
       </div>
+      <p class="note">The app is for macOS 13 or newer. The command line works on macOS, Linux and Windows.</p>
     </div>
 
     <div class="term" role="img" aria-label="The taasant menu in a terminal, with Upload, Files, Download and Delete">
@@ -268,15 +286,30 @@
     </div>
   </div>
 
+  <section id="two-ways">
+    <div class="wrap">
+      <h2>Two ways to use it</h2>
+      <p class="sub">Take the one you like. They share the same settings and the same files, so you can use both.</p>
+      <div class="grid">
+        <div><h3>The Mac app</h3><p>An icon in the menu bar to drop files on, a window to find and manage them, and your files as a drive in Finder. Download <code>Taasant.dmg</code>, open it and drag the app to Applications. macOS only.</p>
+          <p><a href="https://github.com/vedantlavale/taasant/releases/latest/download/Taasant.dmg">Download Taasant.dmg</a> · <a href="docs.html#mac">How it works</a></p></div>
+        <div><h3>The command line</h3><p>One small program with a menu and one command per job, for scripts and servers. It works on macOS, Linux and Windows, and it is what runs inside the app.</p>
+          <p><code>curl -fsSL https://taasant.vedantworks.com/install.sh | sh</code></p>
+          <p><a href="docs.html#install-cli">Other ways to install</a></p></div>
+      </div>
+    </div>
+  </section>
+
   <section>
     <div class="wrap">
       <h2>What you get</h2>
-      <p class="sub">A small tool that does one job: keep files in a chat only you can read.</p>
+      <p class="sub">A small tool that does one job: keep files somewhere only you can read them.</p>
       <div class="grid">
-        <div><h3>Encrypted before upload</h3><p>Every file is encrypted on your computer with AES-256-GCM. Telegram only ever stores scrambled bytes.</p></div>
+        <div><h3>Encrypted before upload</h3><p>Every file is encrypted on your computer with AES-256-GCM. Telegram or your bucket only ever stores scrambled bytes.</p></div>
+        <div><h3>Your choice of place</h3><p>Telegram is free. Cloudflare R2, Amazon S3 and MinIO are paid, and you can keep several and pick one per upload.</p></div>
         <div><h3>Big files, handled</h3><p>Large files are split into parts, sent side by side, and put back together when you download.</p></div>
         <div><h3>Names, not IDs</h3><p>Get a file back by name. Type part of it, or a few of its letters: <code>taasant download hol</code> finds <code>holiday.jpg</code>.</p></div>
-        <div><h3>A menu or plain commands</h3><p>Run <code>taasant</code> to browse folders and pick files with the arrow keys, or use the commands in scripts.</p></div>
+        <div><h3>An app, a menu or plain commands</h3><p>Drop files on the Mac app's menu bar icon, run <code>taasant</code> to pick files with the arrow keys, or use the commands in scripts.</p></div>
       </div>
     </div>
   </section>
@@ -284,17 +317,19 @@
   <section>
     <div class="wrap">
       <h2>Using it</h2>
-      <p class="sub">Setting up takes about five minutes: run <code>taasant</code>, make a bot, and it asks for the rest.</p>
+      <p class="sub">Setting up takes about five minutes: open the app or run <code>taasant</code>, choose where your files go, and it asks for the rest.</p>
 <pre class="cmd">taasant upload report.pdf     <span class="c"># store a file</span>
+taasant upload --to r2 a.pdf  <span class="c"># store it in another place</span>
 taasant list                  <span class="c"># see everything, newest first</span>
 taasant download report       <span class="c"># get it back</span>
 taasant delete report         <span class="c"># remove it</span>
+taasant setup                 <span class="c"># add a place for your files</span>
 taasant update                <span class="c"># get the newest version</span></pre>
       <div class="btns">
         <a class="btn" href="docs.html#setup">Set it up</a>
         <a class="btn" href="docs.html#usage">All commands</a>
       </div>
-      <p class="note">taasant is a hobby project. To be safe, create the bot from a second Telegram account, be reasonable about what you store, and keep a copy of anything important somewhere else. If you lose your key, your files cannot be recovered.</p>
+      <p class="note">taasant is a hobby project. If you use Telegram, create the bot from a second Telegram account, be reasonable about what you store, and keep a copy of anything important somewhere else. If you lose your key, your files cannot be recovered.</p>
     </div>
   </section>
 
@@ -303,13 +338,15 @@ taasant update                <span class="c"># get the newest version</span></p
       <h2>Questions</h2>
       <p class="sub">Click a question to see the answer.</p>
       <div class="faq">
-        <details><summary>Is taasant free?</summary><p>Yes. taasant is free and open source under the MIT license, and it uses the file storage Telegram gives every bot at no cost. There is no paid plan.</p></details>
+        <details><summary>Is there a Mac app?</summary><p>Yes. Download <code>Taasant.dmg</code>, open it and drag the app to Applications. It puts an icon in the menu bar to drop files on, a window to manage them, and your files as a drive in Finder. It is for macOS 13 or newer, and it has the command-line program inside it. You can use the app, the command line, or both.</p></details>
+        <details><summary>Can I use my own bucket instead of Telegram?</summary><p>Yes. taasant works with Cloudflare R2, Amazon S3, MinIO and any service with an S3 address. Files are encrypted on your computer first, as with Telegram. You can keep several places and choose one for each upload.</p></details>
+        <details><summary>Is taasant free?</summary><p>Yes. taasant is free and open source under the MIT license. With Telegram, it uses the file storage Telegram gives every bot at no cost. If you choose your own bucket on Cloudflare R2, Amazon S3 or MinIO, that storage is billed by its provider, not by taasant. There is no paid plan.</p></details>
         <details><summary>Can Telegram read my files?</summary><p>No. Every file is encrypted on your computer with AES-256-GCM before it is uploaded, and the key never leaves your computer. Telegram stores scrambled parts, all named part.bin. It can see how many there are and how big they are, but not what is in them or what the files are called.</p></details>
         <details><summary>Is taasant safe to use?</summary><p>Your files are private: they are encrypted on your computer with Go's standard library, and the source code is public. The code has not had a professional security audit, and Telegram makes no promise to keep the files. To be safe, create the bot from a second Telegram account, and do not make it the only copy of anything you cannot lose.</p></details>
         <details><summary>Can my Telegram account get banned for using taasant?</summary><p>taasant only works through a bot and never logs in to your own account. Telegram might restrict a bot that is used this way, so to be safe, create the bot from a second Telegram account.</p></details>
-        <details><summary>How big can a file be?</summary><p>taasant sets no limit of its own. A Telegram bot can only download files up to 20 MB, so taasant cuts every file into 19 MiB parts and puts them back together on download. Very large files use a lot of memory while they download.</p></details>
+        <details><summary>How big can a file be?</summary><p>taasant sets no limit of its own for Telegram: a bot can only download files up to 20 MB, so taasant cuts every file into 19 MiB parts and puts them back together on download, and very large files use a lot of memory while they download. In a bucket, one file can be up to 156 GiB.</p></details>
         <details><summary>What happens if I lose my key?</summary><p>The files are gone. The key is the only thing that can decrypt them, and nobody, including the author and Telegram, can recover it. Keep a copy in a password manager.</p></details>
-        <details><summary>Can I use it on two computers?</summary><p>Each computer keeps its own list of uploaded files, and the lists are not synced. With the same bot, chat and key on both, each one only sees the files it uploaded itself.</p></details>
+        <details><summary>Can I use it on two computers?</summary><p>Each computer keeps its own list of uploaded files, and the lists are not synced. With the same place and key on both, each one only sees the files it uploaded itself. taasant keeps an encrypted backup of the list in your default place, and you can restore it on another computer.</p></details>
         <details><summary>Does it work on Windows and Linux?</summary><p>Yes. There are ready-made programs for macOS (Apple Silicon and Intel), Linux and Windows, and it can be built from source anywhere Go runs. The Mac app and the drive in Finder are macOS only for now.</p></details>
         <details><summary>Is taasant made by Telegram?</summary><p>No. taasant is an independent hobby project by Vedant Lavale. It talks to Telegram through the public Bot API.</p></details>
       </div>
