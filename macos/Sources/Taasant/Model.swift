@@ -362,7 +362,7 @@ final class Model: ObservableObject {
     // If the app was moved, the login job still points at the old copy of
     // taasant. Starting it again points it at this one.
     private func repointAutostart() {
-        guard autostart, let text = try? String(contentsOf: plist, encoding: .utf8) else { return }
+        guard autostart, configured, let text = try? String(contentsOf: plist, encoding: .utf8) else { return }
         // The plist is XML, so an apostrophe or an ampersand in the path is
         // written as an entity; without this a path such as Bob's Apps never
         // matched, and the drive was restarted at every launch.
