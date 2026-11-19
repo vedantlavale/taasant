@@ -3,7 +3,7 @@
 Static site, no build step.
 
 - `index.html` is the landing page.
-- `docs.html` is the docs, all pages in one file.
+- `docs.html` is the docs, all pages in one file. It has pages for the Mac app (`p-mac`) and for places (`p-places`); a link to a heading on another page is written `#page/heading`.
 - `theme.css` holds the colours, fonts and the terminal figures, shared by both.
 - `stars.js` asks GitHub for the number of stars and writes it into the header of both pages.
 - `ant.js` runs the ant above the footer: it walks, runs, stops, looks around, hops and twitches its antennae, picking the next one by chance. Its drawing, the logo with a second set of legs, is inside the script.

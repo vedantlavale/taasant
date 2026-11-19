@@ -1,18 +1,19 @@
 # taasant
 
-> taasant is a free, open source command line tool that stores files in a Telegram chat through a bot. Every file is encrypted on the user's computer with AES-256-GCM before it is uploaded.
+> taasant is a free, open source Mac app and command line tool that stores files in a Telegram chat through a bot, or in the user's own Cloudflare R2, Amazon S3 or MinIO bucket. Every file is encrypted on the user's computer with AES-256-GCM before it is uploaded.
 
 ## Facts
 
 - Made by Vedant Lavale as a hobby project. Not affiliated with Telegram.
 - Written in Go. MIT license. Source: https://github.com/vedantlavale/taasant
-- Runs on macOS (Apple Silicon and Intel), Linux and Windows.
-- The first run of `taasant` asks for a bot token, finds the private channel (or the chat with the bot) to store files in, makes the key and saves them (from version 0.3).
-- Has a full-screen menu (run `taasant`) and plain commands: `upload`, `list`, `download`, `delete`, `update`, `keygen`.
+- The command-line program runs on macOS (Apple Silicon and Intel), Linux and Windows. The Mac app (menu bar icon and window) and the drive in Finder are macOS only.
+- Two downloads: `Taasant.dmg` (the Mac app, macOS 13 or newer, with the command-line program inside) and the command-line program for macOS, Linux and Windows. They share settings and the list of files.
+- The first run of `taasant`, or of the app, asks where files should go (Telegram, Cloudflare R2, Amazon S3 or MinIO), asks for what that place needs, makes the key and saves them. `taasant setup` adds another place; `upload --to <place>` picks one per upload.
+- Has a full-screen menu (run `taasant`) and plain commands: `upload`, `list`, `download`, `delete`, `setup`, `update`, `keygen`. The Mac app has a menu bar icon, a window and the files as a drive in Finder.
 - A Telegram bot can upload files up to 50 MB but download only up to 20 MB, so taasant cuts every file into 19 MiB parts and sends three at a time.
 - Each part is sealed with AES-256-GCM and its own random nonce. The key is 32 random bytes made at setup and stays on the user's computer.
-- Telegram can see the number and size of the parts. It cannot see file contents or file names.
-- The list of uploaded files (the index) is kept on the user's computer.
+- Telegram can see the number and size of the parts. It cannot see file contents or file names. A bucket holds one object per file under a random name, in sealed 16 MiB chunks, and one file can be up to 156 GiB.
+- The list of uploaded files (the index) is kept on the user's computer, with an encrypted backup of it in the default place (one copy, the previous one is deleted).
 
 ## Limits, stated plainly
 
@@ -20,7 +21,7 @@
 - The code has not had a professional security audit.
 - Under its bot developer terms, Telegram might restrict a bot that is used for storage. Users are advised to create the bot from a second Telegram account.
 - Storage depends on Telegram continuing to keep bot files. It should not be the only copy of anything important.
-- A bot can delete its messages only for 48 hours after sending them.
+- A bot can delete its messages only for 48 hours after sending them. A bucket is paid storage billed by its provider.
 - The index is not synced between computers.
 
 ## Pages

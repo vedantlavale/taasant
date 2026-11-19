@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 type entry struct {
 	Name     string    `json:"name"`
 	ID       string    `json:"id"`
+	Backend  string    `json:"backend,omitempty"`
 	Size     int64     `json:"size"`
 	Uploaded time.Time `json:"uploaded"`
 }
@@ -127,7 +129,7 @@ func find(entries []entry, query string) (entry, error) {
 		return found[0], nil
 	}
 	if len(found) == 0 {
-		if strings.Contains(query, ":") {
+		if raw, err := hex.DecodeString(query); strings.Contains(query, ":") || (err == nil && len(raw) == 16) {
 			return entry{ID: query}, nil
 		}
 		return entry{}, fmt.Errorf("nothing in the index matches %q", query)

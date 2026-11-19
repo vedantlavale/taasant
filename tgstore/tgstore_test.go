@@ -18,6 +18,7 @@ type fakeTelegram struct {
 	files     map[string][]byte
 	sent      int
 	failSends int
+	downloads int
 }
 
 func (f *fakeTelegram) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -61,6 +62,7 @@ func (f *fakeTelegram) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	default:
 		var id string
 		fmt.Sscanf(r.URL.Path, "/file/botTOKEN/documents/%s", &id)
+		f.downloads++
 		w.Write(f.files[id])
 	}
 }
@@ -89,7 +91,7 @@ func TestRoundTrip(t *testing.T) {
 			store, fake := newTestStore(t, 1024)
 			key, content := randomBytes(32), randomBytes(size)
 
-			id, err := store.Upload(context.Background(), key, bytes.NewReader(content))
+			id, err := store.Upload(context.Background(), key, bytes.NewReader(content), nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -106,7 +108,7 @@ func TestRoundTrip(t *testing.T) {
 			fake.mu.Unlock()
 
 			var out bytes.Buffer
-			if err := store.Download(context.Background(), key, id, &out); err != nil {
+			if err := store.Download(context.Background(), key, id, &out, nil); err != nil {
 				t.Fatal(err)
 			}
 			if !bytes.Equal(out.Bytes(), content) {
@@ -118,11 +120,11 @@ func TestRoundTrip(t *testing.T) {
 
 func TestWrongKey(t *testing.T) {
 	store, _ := newTestStore(t, 1024)
-	id, err := store.Upload(context.Background(), randomBytes(32), bytes.NewReader(randomBytes(2000)))
+	id, err := store.Upload(context.Background(), randomBytes(32), bytes.NewReader(randomBytes(2000)), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Download(context.Background(), randomBytes(32), id, io.Discard); err == nil {
+	if err := store.Download(context.Background(), randomBytes(32), id, io.Discard, nil); err == nil {
 		t.Fatal("download with the wrong key succeeded")
 	}
 }
@@ -132,12 +134,12 @@ func TestRetry(t *testing.T) {
 	fake.failSends = 1
 	key, content := randomBytes(32), randomBytes(500)
 
-	id, err := store.Upload(context.Background(), key, bytes.NewReader(content))
+	id, err := store.Upload(context.Background(), key, bytes.NewReader(content), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
-	if err := store.Download(context.Background(), key, id, &out); err != nil {
+	if err := store.Download(context.Background(), key, id, &out, nil); err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(out.Bytes(), content) {
@@ -149,7 +151,7 @@ func TestUploadFailure(t *testing.T) {
 	store, _ := newTestStore(t, 1024)
 	store.Client = &http.Client{Transport: failFast{}}
 
-	_, err := store.Upload(context.Background(), randomBytes(32), bytes.NewReader(randomBytes(5000)))
+	_, err := store.Upload(context.Background(), randomBytes(32), bytes.NewReader(randomBytes(5000)), nil)
 	if err == nil {
 		t.Fatal("upload succeeded although every request failed")
 	}
@@ -164,7 +166,7 @@ func (failFast) RoundTrip(*http.Request) (*http.Response, error) {
 func TestMissingObject(t *testing.T) {
 	store, _ := newTestStore(t, 1024)
 	for _, id := range []string{"nope", "7:nope"} {
-		if err := store.Download(context.Background(), randomBytes(32), id, io.Discard); err == nil {
+		if err := store.Download(context.Background(), randomBytes(32), id, io.Discard, nil); err == nil {
 			t.Fatalf("download of missing object %q succeeded", id)
 		}
 	}
@@ -174,16 +176,22 @@ func TestDelete(t *testing.T) {
 	store, fake := newTestStore(t, 1024)
 	key := randomBytes(32)
 
-	kept, err := store.Upload(context.Background(), key, bytes.NewReader(randomBytes(100)))
+	kept, err := store.Upload(context.Background(), key, bytes.NewReader(randomBytes(100)), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	id, err := store.Upload(context.Background(), key, bytes.NewReader(randomBytes(3000)))
+	id, err := store.Upload(context.Background(), key, bytes.NewReader(randomBytes(3000)), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Delete(context.Background(), key, id); err != nil {
+	var done, total int
+	if err := store.Delete(context.Background(), key, id, func(d, t int) {
+		done, total = d, t
+	}); err != nil {
 		t.Fatal(err)
+	}
+	if total != 4 || done != total {
+		t.Fatalf("delete progress ended at %d of %d, want 4 of 4", done, total)
 	}
 
 	fake.mu.Lock()
@@ -192,10 +200,10 @@ func TestDelete(t *testing.T) {
 	if remaining != 2 {
 		t.Fatalf("%d files remain, want the 2 of the other object", remaining)
 	}
-	if err := store.Download(context.Background(), key, id, io.Discard); err == nil {
+	if err := store.Download(context.Background(), key, id, io.Discard, nil); err == nil {
 		t.Fatal("download of a deleted object succeeded")
 	}
-	if err := store.Download(context.Background(), key, kept, io.Discard); err != nil {
+	if err := store.Download(context.Background(), key, kept, io.Discard, nil); err != nil {
 		t.Fatal(err)
 	}
 }

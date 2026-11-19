@@ -26,13 +26,13 @@ type Store struct {
 	Workers  int
 	Client   *http.Client
 
-	// Progress, if set, is called with a number of bytes each time some more
-	// of the object has been uploaded or downloaded. The numbers add up to
-	// the size of the object. One can be negative: after a failed attempt a
-	// part starts again from zero. Calls never overlap.
-	Progress func(bytes int)
-
 	partSize int
+
+	// What Readers have fetched, see reader.go.
+	mu     sync.Mutex
+	shapes map[string]shape
+	parts  map[string]*fetched
+	order  []string
 }
 
 type stored struct {
@@ -62,7 +62,12 @@ func New(token string, chatID int64) *Store {
 
 // Upload stores everything read from r and returns the ID needed to download it.
 // The key must be 16, 24 or 32 bytes long.
-func (s *Store) Upload(ctx context.Context, key []byte, r io.Reader) (string, error) {
+//
+// progress, if not nil, is called with a number of bytes each time some more
+// of the object has been uploaded. The numbers add up to the size of the
+// object. One can be negative: after a failed attempt a part starts again
+// from zero. Calls never overlap.
+func (s *Store) Upload(ctx context.Context, key []byte, r io.Reader, progress func(bytes int)) (string, error) {
 	aead, err := newCipher(key)
 	if err != nil {
 		return "", err
@@ -90,13 +95,13 @@ func (s *Store) Upload(ctx context.Context, key []byte, r io.Reader) (string, er
 	for range max(s.Workers, 1) {
 		wg.Go(func() {
 			for p := range parts {
-				// counted is how much of this part Progress has heard of.
+				// counted is how much of this part progress has heard of.
 				counted := 0
 				report := func(done, total int) {
 					now := int(int64(done) * int64(len(p.data)) / int64(total))
 					mu.Lock()
-					if s.Progress != nil {
-						s.Progress(now - counted)
+					if progress != nil {
+						progress(now - counted)
 					}
 					counted = now
 					mu.Unlock()
@@ -154,8 +159,9 @@ func (s *Store) Upload(ctx context.Context, key []byte, r io.Reader) (string, er
 	return fmt.Sprintf("%d:%s", sent.MessageID, sent.FileID), nil
 }
 
-// Download writes the object stored under id to w.
-func (s *Store) Download(ctx context.Context, key []byte, id string, w io.Writer) error {
+// Download writes the object stored under id to w. progress works as it does
+// for Upload, with the bytes downloaded.
+func (s *Store) Download(ctx context.Context, key []byte, id string, w io.Writer, progress func(bytes int)) error {
 	aead, err := newCipher(key)
 	if err != nil {
 		return err
@@ -173,13 +179,13 @@ func (s *Store) Download(ctx context.Context, key []byte, id string, w io.Writer
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// counted is how much of each part Progress has heard of.
+	// counted is how much of each part progress has heard of.
 	var mu sync.Mutex
 	counted := make([]int, len(m.Parts))
 	report := func(i, now int) {
 		mu.Lock()
-		if s.Progress != nil {
-			s.Progress(now - counted[i])
+		if progress != nil {
+			progress(now - counted[i])
 		}
 		counted[i] = now
 		mu.Unlock()
@@ -210,7 +216,9 @@ func (s *Store) Download(ctx context.Context, key []byte, id string, w io.Writer
 
 // Delete removes the messages that hold the object stored under id.
 // Telegram only lets a bot delete messages sent in the last 48 hours.
-func (s *Store) Delete(ctx context.Context, key []byte, id string) error {
+// report, if not nil, is told how many messages have gone after each one, so
+// a caller can show a bar.
+func (s *Store) Delete(ctx context.Context, key []byte, id string, report func(done, total int)) error {
 	aead, err := newCipher(key)
 	if err != nil {
 		return err
@@ -220,12 +228,22 @@ func (s *Store) Delete(ctx context.Context, key []byte, id string) error {
 		return err
 	}
 
-	for _, p := range m.Parts {
+	total := len(m.Parts) + 1
+	for i, p := range m.Parts {
 		if err := s.deleteMessage(ctx, p.MessageID); err != nil {
 			return err
 		}
+		if report != nil {
+			report(i+1, total)
+		}
 	}
-	return s.deleteMessage(ctx, messageID)
+	if err := s.deleteMessage(ctx, messageID); err != nil {
+		return err
+	}
+	if report != nil {
+		report(total, total)
+	}
+	return nil
 }
 
 func (s *Store) fetchManifest(ctx context.Context, aead cipher.AEAD, id string) (manifest, int, error) {

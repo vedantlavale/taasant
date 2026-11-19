@@ -6,5 +6,7 @@ hello.go
 *.html
 DOC.md
 .DS_Store
+/macos/.build/
+/macos/dist/
 !/site/*.html
 !/site/blog/*.html

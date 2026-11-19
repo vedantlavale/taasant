@@ -39,8 +39,8 @@ func TestBrokenConnectionIsRetried(t *testing.T) {
 	key, content := randomBytes(32), randomBytes(3000)
 
 	reported := 0
-	store.Progress = func(bytes int) { reported += bytes }
-	id, err := store.Upload(context.Background(), key, bytes.NewReader(content))
+	progress := func(bytes int) { reported += bytes }
+	id, err := store.Upload(context.Background(), key, bytes.NewReader(content), progress)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func TestBrokenConnectionIsRetried(t *testing.T) {
 	}
 
 	var got bytes.Buffer
-	if err := store.Download(context.Background(), key, id, &got); err != nil {
+	if err := store.Download(context.Background(), key, id, &got, nil); err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(got.Bytes(), content) {
@@ -61,7 +61,7 @@ func TestBrokenConnectionIsRetried(t *testing.T) {
 // the bot token.
 func TestErrorHidesToken(t *testing.T) {
 	store, _ := dropFirst(t, 100)
-	_, err := store.Upload(context.Background(), randomBytes(32), bytes.NewReader(randomBytes(10)))
+	_, err := store.Upload(context.Background(), randomBytes(32), bytes.NewReader(randomBytes(10)), nil)
 	if err == nil {
 		t.Fatal("upload over a dead connection succeeded")
 	}
@@ -73,8 +73,8 @@ func TestErrorHidesToken(t *testing.T) {
 func TestProgressMovesDuringAPart(t *testing.T) {
 	store, _ := newTestStore(t, 1<<20)
 	calls := 0
-	store.Progress = func(bytes int) { calls++ }
-	if _, err := store.Upload(context.Background(), randomBytes(32), bytes.NewReader(randomBytes(1<<20))); err != nil {
+	progress := func(bytes int) { calls++ }
+	if _, err := store.Upload(context.Background(), randomBytes(32), bytes.NewReader(randomBytes(1<<20)), progress); err != nil {
 		t.Fatal(err)
 	}
 	if calls < 5 {
