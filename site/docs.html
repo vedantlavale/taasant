@@ -721,6 +721,7 @@ taasant download report            # get it back
 taasant download report copy.pdf   # get it back under another name
 taasant delete report              # remove it
 taasant setup                      # add a place for your files, or fix one
+taasant default r2                 # make new files go to that place
 taasant update                     # get the newest version of taasant</pre></div>
         <p>Each file remembers where it was stored, so <code>download</code> and <code>delete</code> find it by themselves. Only a file that is not in the list, such as the backup of the index, needs <code>--to</code>. See <a href="#places">Places for your files</a>.</p>
         <p>You don't have to type the whole name. See <a href="#matching">Finding files by name</a>.</p>
@@ -777,6 +778,7 @@ taasant update                     # get the newest version of taasant</pre></di
 <pre data-lang="bash">taasant upload report.pdf            # goes to your default place
 taasant upload --to r2 report.pdf    # goes to the place called "r2"
 taasant list                         # shows a WHERE column once you use more than one</pre></div>
+        <p>To change the default without running setup again, press <strong>Make default</strong> on the place's row in the Mac app's Settings, or run <code>taasant default r2</code>. Files you already have stay where they are.</p>
 
         <h2 id="places-buckets">Buckets: R2, S3, MinIO</h2>
         <p>The files are encrypted on your computer first, as with Telegram, and stored under random names. A file is one object in your bucket, cut into sealed parts that cannot be swapped, dropped or cut short without being found out. A bucket holds files up to 156 GiB each.</p>
@@ -841,7 +843,7 @@ taasant list                         # shows a WHERE column once you use more th
           <li><strong>Files:</strong> search, filter by kind, sort, and Upload. The arrow beside Upload sends a file to a place other than the default. A tag shows where each file is once you have more than one place.</li>
           <li><strong>Transfers:</strong> what is moving, with a button to cancel it.</li>
           <li><strong>Drive:</strong> connect or eject the drive, and start it at login.</li>
-          <li><strong>Settings:</strong> your places, and a switch to keep file names out of the menu bar for a screen share.</li>
+          <li><strong>Settings:</strong> your places, a <strong>Make default</strong> button on each other place, and a switch to keep file names out of the menu bar for a screen share.</li>
         </ul>
 
         <h2 id="mac-drive">The drive in Finder</h2>

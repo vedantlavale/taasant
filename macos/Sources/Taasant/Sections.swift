@@ -351,6 +351,8 @@ struct DriveSection: View {
 
 struct SettingsSection: View {
     @ObservedObject var model: Model
+    // The place a click on "Make default" is about, until it is confirmed.
+    @StateObject private var prompt = DefaultPrompt()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -363,21 +365,8 @@ struct SettingsSection: View {
                             Text("Nothing is set up yet.").foregroundStyle(Brand.muted)
                         }
                         ForEach(model.places) { place in
-                            HStack(spacing: 10) {
-                                Image(systemName: place.type == "telegram" ? "paperplane" : "externaldrive.connected.to.line.below")
-                                    .foregroundStyle(Brand.accent)
-                                    .frame(width: 22)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(place.name).foregroundStyle(Brand.text)
-                                    Text("\(place.label) · \(place.detail)")
-                                        .font(.caption).foregroundStyle(Brand.muted)
-                                        .lineLimit(1).truncationMode(.middle)
-                                }
-                                Spacer()
-                                if place.name == model.standard && model.places.count > 1 {
-                                    Text("Default").font(.caption2.weight(.medium)).foregroundStyle(Brand.accent)
-                                }
-                            }
+                            PlaceRow(place: place, isDefault: place.name == model.standard,
+                                     multiple: model.places.count > 1) { prompt.place = $0 }
                         }
                         Button(model.configured ? "Add a place…" : "Open setup") { model.setUp() }
                         if model.configured {
@@ -413,6 +402,64 @@ struct SettingsSection: View {
                 .padding(.horizontal, 20)
                 .padding(.bottom, 20)
             }
+        }
+        .alert(
+            prompt.place.map { "Make \($0.name) the default place?" } ?? "",
+            isPresented: Binding(
+                get: { prompt.place != nil },
+                set: { if !$0 { prompt.place = nil } }
+            )
+        ) {
+            Button("Cancel", role: .cancel) { prompt.place = nil }
+            Button("Make default") {
+                if let place = prompt.place { model.makeDefault(place) }
+                prompt.place = nil
+            }
+        } message: {
+            Text("New files will go to \(prompt.place?.name ?? "that place"). Files you already stored stay where they are.")
+        }
+    }
+
+    // Held by an object because the button that starts the confirmation is a
+    // closure, and SwiftUI views cannot change their own state there.
+    private final class DefaultPrompt: ObservableObject {
+        @Published var place: Place?
+    }
+
+    // One place in Settings. With more than one, the others get a button to
+    // make them the default, so this never has to go through setup again.
+    private struct PlaceRow: View {
+        let place: Place
+        let isDefault: Bool
+        let multiple: Bool
+        let makeDefault: (Place) -> Void
+        @StateObject private var pointer = PointerState()
+
+        var body: some View {
+            HStack(spacing: 10) {
+                Image(systemName: place.type == "telegram" ? "paperplane" : "externaldrive.connected.to.line.below")
+                    .foregroundStyle(Brand.accent)
+                    .frame(width: 22)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(place.name).foregroundStyle(Brand.text)
+                    Text("\(place.label) · \(place.detail)")
+                        .font(.caption).foregroundStyle(Brand.muted)
+                        .lineLimit(1).truncationMode(.middle)
+                }
+                Spacer()
+                if isDefault && multiple {
+                    Text("Default").font(.caption2.weight(.medium)).foregroundStyle(Brand.accent)
+                } else if multiple {
+                    Button("Make default") { makeDefault(place) }
+                        .buttonStyle(.borderless)
+                        .font(.caption)
+                        .foregroundStyle(Brand.accent)
+                        .help("Send new files to \(place.name)")
+                        .opacity(pointer.over ? 1 : 0.55)
+                }
+            }
+            .contentShape(Rectangle())
+            .onHover { pointer.over = $0 }
         }
     }
 

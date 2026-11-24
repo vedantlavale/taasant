@@ -6,9 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -122,6 +124,36 @@ func saveConfig(path string, c config) error {
 		return err
 	}
 	return writeFile(path, data)
+}
+
+// setDefault changes where new files go. Files already stored stay where they
+// are; only the name in the settings file changes.
+func setDefault(name string) error {
+	path, err := configPath()
+	if err != nil {
+		return err
+	}
+	c, err := loadConfig(path)
+	if err != nil {
+		return fmt.Errorf("%s cannot be read: %w", path, err)
+	}
+	known := slices.Sorted(maps.Keys(c.Backends))
+	if len(known) == 0 {
+		return errors.New("no places are set up yet, run taasant setup")
+	}
+	if !slices.Contains(known, name) {
+		return fmt.Errorf("there is no place called %s, only %s", name, strings.Join(known, ", "))
+	}
+	if c.Default == name {
+		printDone("new files already go to " + name)
+		return nil
+	}
+	c.Default = name
+	if err := saveConfig(path, c); err != nil {
+		return fmt.Errorf("could not save %s: %w", path, err)
+	}
+	printDone("new files go to " + name)
+	return nil
 }
 
 // writeFile writes to a temporary file first, so a crash cannot leave a half-written file.

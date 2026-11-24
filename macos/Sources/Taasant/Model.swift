@@ -49,8 +49,13 @@ struct Place: Identifiable, Hashable {
             found.append(Place(name: "telegram", type: "telegram", detail: "a bot of your own"))
         }
         let standard = json["default"] as? String ?? (found.first?.name ?? "")
-        // The default comes first, as it is the one that matters.
-        found.sort { ($0.name == standard ? 0 : 1, $0.name) < ($1.name == standard ? 0 : 1, $1.name) }
+        // A fixed order, so changing the default never moves a row: Telegram
+        // first, then the buckets by name.
+        found.sort { first, second in
+            let firstTelegram = first.type == "telegram", secondTelegram = second.type == "telegram"
+            if firstTelegram != secondTelegram { return firstTelegram }
+            return first.name < second.name
+        }
         return (found, standard)
     }
 }
@@ -161,6 +166,7 @@ private let home = FileManager.default.homeDirectoryForCurrentUser
 @MainActor
 final class Model: ObservableObject {
     static let shared = Model()
+    private static let hiddenInMenuBarKey = "hiddenInMenuBar"
 
     @Published var files: [StoredFile] = []
     @Published var jobs: [Job] = []
@@ -174,9 +180,11 @@ final class Model: ObservableObject {
     @Published var listError: String?
     @Published var notice: Notice?
     @Published var driveUpload: DriveUpload?
-    // A temporary view setting: hiding files here changes nothing on disk or
-    // in Telegram, and the window keeps showing them.
-    @Published var hiddenInMenuBar = false
+    // Said in the preferences, so it lasts across launches. Hiding files here
+    // changes nothing on disk or in Telegram, and the window keeps showing them.
+    @Published var hiddenInMenuBar = UserDefaults.standard.bool(forKey: Model.hiddenInMenuBarKey) {
+        didSet { UserDefaults.standard.set(hiddenInMenuBar, forKey: Model.hiddenInMenuBarKey) }
+    }
     // The words for where new files go, in the places that talk about it.
     var standardLabel: String {
         standard.isEmpty || places.count <= 1 ? (places.first?.label ?? "your place") : standard
@@ -399,6 +407,20 @@ final class Model: ObservableObject {
         try? "#!/bin/sh\n\(env)exec \(command)\n".write(to: script, atomically: true, encoding: .utf8)
         try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path)
         NSWorkspace.shared.open(script)
+    }
+
+    // Changing the default is one line in the settings, not another trip
+    // through setup. Files already stored stay where they are.
+    func makeDefault(_ place: Place) {
+        guard place.name != standard else { return }
+        Task {
+            do {
+                _ = try await CLI.run(["default", place.name])
+                await tick()
+            } catch {
+                notice = Notice(title: "Could not change the default", text: error.localizedDescription)
+            }
+        }
     }
 
     private func run(_ path: String, _ arguments: [String]) async throws -> Void {

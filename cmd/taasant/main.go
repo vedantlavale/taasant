@@ -24,6 +24,7 @@ const usage = `usage:
   taasant                 open the menu
   taasant keygen
   taasant setup           add a place for the files, or fix one
+  taasant default <place> make new files go to that place
   taasant upload [--to <place>] <file>
   taasant list [search]
   taasant download [--to <place>] <name or id> [output-file]
@@ -97,6 +98,8 @@ func run(args []string) error {
 		_, err := settings()
 		_, err = askQuestions(err == nil)
 		return err
+	case command == "default" && len(args) == 1:
+		return setDefault(args[0])
 	case command == "help":
 		fmt.Println(usage)
 		return nil

@@ -8,8 +8,8 @@
 - Written in Go. MIT license. Source: https://github.com/vedantlavale/taasant
 - The command-line program runs on macOS (Apple Silicon and Intel), Linux and Windows. The Mac app (menu bar icon and window) and the drive in Finder are macOS only.
 - Two downloads: `Taasant.dmg` (the Mac app, macOS 13 or newer, with the command-line program inside) and the command-line program for macOS, Linux and Windows. They share settings and the list of files.
-- The first run of `taasant`, or of the app, asks where files should go (Telegram, Cloudflare R2, Amazon S3 or MinIO), asks for what that place needs, makes the key and saves them. `taasant setup` adds another place; `upload --to <place>` picks one per upload.
-- Has a full-screen menu (run `taasant`) and plain commands: `upload`, `list`, `download`, `delete`, `setup`, `update`, `keygen`. The Mac app has a menu bar icon, a window and the files as a drive in Finder.
+- The first run of `taasant`, or of the app, asks where files should go (Telegram, Cloudflare R2, Amazon S3 or MinIO), asks for what that place needs, makes the key and saves them. `taasant setup` adds another place; `upload --to <place>` picks one per upload. `taasant default <place>` changes where new files go, and the Mac app's Settings has a Make default button on each other place; stored files stay where they are.
+- Has a full-screen menu (run `taasant`) and plain commands: `upload`, `list`, `download`, `delete`, `setup`, `default`, `update`, `keygen`. The Mac app has a menu bar icon, a window and the files as a drive in Finder.
 - A Telegram bot can upload files up to 50 MB but download only up to 20 MB, so taasant cuts every file into 19 MiB parts and sends three at a time.
 - Each part is sealed with AES-256-GCM and its own random nonce. The key is 32 random bytes made at setup and stays on the user's computer.
 - Telegram can see the number and size of the parts. It cannot see file contents or file names. A bucket holds one object per file under a random name, in sealed 16 MiB chunks, and one file can be up to 156 GiB.
