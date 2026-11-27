@@ -40,9 +40,21 @@ sed "s/VERSION/$version/" Info.plist > "$app/Contents/Info.plist"
 cp AppIcon.icns "$app/Contents/Resources/AppIcon.icns"
 rm -rf "$dist/go"
 
-# Without a certificate. Ad hoc signing is still needed: a program on an
-# Apple silicon Mac does not start with no signature at all.
-codesign --force --deep --sign - "$app"
+# Ad hoc signing is still needed: a program on an Apple silicon Mac does not
+# start with no signature at all. But an ad hoc signature is exactly what makes
+# Gatekeeper say "Apple could not verify taasant": only a Developer ID
+# signature plus notarization lets a new person open the download without
+# going to Privacy & Security first. The release build sets
+# APPLE_SIGNING_IDENTITY and the notary credentials; a plain local build has
+# neither and stays ad hoc.
+sign_identity=${APPLE_SIGNING_IDENTITY:--}
+if [ "$sign_identity" = "-" ]; then
+  codesign --force --sign - "$app/Contents/Resources/taasant"
+  codesign --force --sign - "$app"
+else
+  codesign --force --options runtime --timestamp --sign "$sign_identity" "$app/Contents/Resources/taasant"
+  codesign --force --options runtime --timestamp --sign "$sign_identity" "$app"
+fi
 # The installer: a window with the app, a shortcut to Applications and an
 # arrow between them. Finder lays the window out from a script, which needs
 # a login session; where there is none, the disk image is plain but still works.
@@ -95,4 +107,15 @@ sync
 hdiutil detach -quiet "$device" || { sleep 2; hdiutil detach -force -quiet "$device"; }
 hdiutil convert -quiet "$dist/rw.dmg" -format UDZO -imagekey zlib-level=9 -o "$dist/$name.dmg"
 rm -rf "$dist/rw.dmg" "$stage"
+
+# Notarize what people download and staple the ticket, so the first launch
+# checks out with no network and no "Apple could not verify" dialog. Only runs
+# in the release build, where the credentials are set.
+if [ "$sign_identity" != "-" ] && [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ] && [ -n "${APPLE_APP_PASSWORD:-}" ]; then
+  echo "notarizing $dist/$name.dmg (this can take a few minutes)"
+  xcrun notarytool submit "$dist/$name.dmg" \
+    --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
+  xcrun stapler staple "$dist/$name.dmg"
+  xcrun stapler validate "$dist/$name.dmg"
+fi
 echo "built $app ($version) and $dist/$name.dmg"
