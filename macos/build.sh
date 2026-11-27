@@ -22,7 +22,14 @@ for arch in $archs; do
 done
 lipo -create "$dist"/go/taasant-* -output "$app/Contents/Resources/taasant"
 
-swift build -c release $swift_archs
+# AppKit draws the flat window buttons and their old + / - / x hover symbols
+# for a program linked against an SDK older than 26, even on macOS 27. SwiftPM
+# records the deployment target (13) as the SDK in LC_BUILD_VERSION, so say
+# which SDK we really built with: the old minimum stays, the new buttons come
+# back. The SDK version is read from Xcode so this works on any build Mac.
+sdk_version=$(xcrun --sdk macosx --show-sdk-version)
+swift build -c release $swift_archs \
+  -Xlinker -platform_version -Xlinker macos -Xlinker 13.0 -Xlinker "$sdk_version"
 cp "$(swift build -c release $swift_archs --show-bin-path)/Taasant" "$app/Contents/MacOS/Taasant"
 cp Sources/Taasant/Resources/ant*.png "$app/Contents/Resources/"
 
