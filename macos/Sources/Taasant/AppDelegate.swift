@@ -10,11 +10,13 @@ final class FilesWindow: NSObject, NSWindowDelegate {
     func show() {
         let model = Model.shared
         if window == nil {
-            // .fullScreen makes the green button show the fullscreen arrow on
-            // hover instead of the old zoom "+".
             let made = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 480),
-                                styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullScreen, .fullSizeContentView],
+                                styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                                 backing: .buffered, defer: false)
+            // A window that can go full screen shows the full screen arrow on
+            // the green button, not the old zoom "+". This is a capability,
+            // unlike the .fullScreen style bit, which only says one already is.
+            made.collectionBehavior.insert(.fullScreenPrimary)
             made.title = "taasant"
             made.isReleasedWhenClosed = false
             made.minSize = NSSize(width: 520, height: 360)
