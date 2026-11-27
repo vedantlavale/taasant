@@ -24,13 +24,16 @@ lipo -create "$dist"/go/taasant-* -output "$app/Contents/Resources/taasant"
 
 # AppKit draws the flat window buttons and their old + / - / x hover symbols
 # for a program linked against an SDK older than 26, even on macOS 27. SwiftPM
-# records the deployment target (13) as the SDK in LC_BUILD_VERSION, so say
-# which SDK we really built with: the old minimum stays, the new buttons come
-# back. The SDK version is read from Xcode so this works on any build Mac.
+# records the deployment target (13) as the SDK in LC_BUILD_VERSION, so stamp
+# the SDK we really built with into the binary (both kinds of Mac at once with
+# vtool): the 13 minimum stays and the new buttons come back. This is a
+# post-link step because -Xlinker flags do not survive every SwiftPM version.
+swift build -c release $swift_archs
 sdk_version=$(xcrun --sdk macosx --show-sdk-version)
-swift build -c release $swift_archs \
-  -Xlinker -platform_version -Xlinker macos -Xlinker 13.0 -Xlinker "$sdk_version"
-cp "$(swift build -c release $swift_archs --show-bin-path)/Taasant" "$app/Contents/MacOS/Taasant"
+binary="$(swift build -c release $swift_archs --show-bin-path)/Taasant"
+xcrun vtool -set-build-version macos 13.0 "$sdk_version" -replace -output "$binary.stamped" "$binary"
+mv "$binary.stamped" "$binary"
+cp "$binary" "$app/Contents/MacOS/Taasant"
 cp Sources/Taasant/Resources/ant*.png "$app/Contents/Resources/"
 
 sed "s/VERSION/$version/" Info.plist > "$app/Contents/Info.plist"
