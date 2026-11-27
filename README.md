@@ -8,7 +8,17 @@
 [![Latest release](https://img.shields.io/github/v/release/vedantlavale/taasant?color=6d5df6)](https://github.com/vedantlavale/taasant/releases/latest)
 [![Stars](https://img.shields.io/github/stars/vedantlavale/taasant?color=e3a008)](https://github.com/vedantlavale/taasant)
 
-Telegram lets a bot store files in a chat for free. taasant turns that into a little encrypted drive you use from the terminal.
+taasant is a little encrypted drive for your files. It encrypts every file on your computer before it leaves, then stores it in a Telegram chat, which is free, or in your own bucket on Cloudflare R2, Amazon S3 or MinIO. You choose where, and you can use more than one place.
+
+**Two ways to use it. Pick one, or use both:**
+
+| | The Mac app | The command line |
+|---|---|---|
+| What it is | A menu bar icon to drop files on, a window to manage them, and your files as a drive in Finder | One small program with a menu and a command for each job |
+| Works on | **macOS 13 or newer only** | macOS, Linux and Windows |
+| Get it | [**Taasant.dmg**](https://github.com/vedantlavale/taasant/releases/latest/download/Taasant.dmg): open it and drag the app to Applications | `curl -fsSL https://taasant.vedantworks.com/install.sh \| sh`, or see [Install](#install) |
+
+They share their settings and their list of files, and the app has the command line inside it, so you can start with one and add the other any time.
 
 Docs: [taasant.vedantworks.com](https://taasant.vedantworks.com)
 
@@ -32,9 +42,9 @@ $ taasant download hol
 ✓ saved holiday.jpg
 ```
 
-Everything is encrypted on your computer before it is sent, so Telegram only ever sees scrambled bytes. Big files are split up for you, and you get them back by name, not by some long ID.
+Everything is encrypted on your computer before it is sent, so Telegram or your bucket only ever sees scrambled bytes. Big files are split up for you, and you get them back by name, not by some long ID.
 
-The code is small. The part that stores files uses nothing outside the standard library, and the menu is built with [Bubble Tea](https://github.com/charmbracelet/bubbletea). It works, but treat it as a hobby project and not as your only backup.
+The code is small. The part that stores files uses nothing outside the standard library, the menu is built with [Bubble Tea](https://github.com/charmbracelet/bubbletea), and the drive in Finder with Go's [webdav](https://pkg.go.dev/golang.org/x/net/webdav) package. It works, but treat it as a hobby project and not as your only backup.
 
 Under its [bot terms](https://telegram.org/tos/bot-developers), Telegram might restrict a bot that is used for storage. To be safe, make the bot from a second Telegram account, and be reasonable about what you store.
 
@@ -47,7 +57,19 @@ Under its [bot terms](https://telegram.org/tos/bot-developers), Telegram might r
 
 ## Install
 
-### The quick way (macOS and Linux)
+There are two downloads, and you do not need both.
+
+### The Mac app (macOS only)
+
+1. Download [**Taasant.dmg**](https://github.com/vedantlavale/taasant/releases/latest/download/Taasant.dmg) and open it.
+2. In the window that opens, drag **Taasant** onto **Applications**, then eject the disk image.
+3. Open **Taasant** from Applications. Its icon appears in the menu bar, and the first time it offers to set taasant up.
+
+It needs macOS 13 or newer, on Apple silicon or Intel, and nothing else: the `taasant` program is inside it. macOS will say it cannot verify the app the first time, see ["Apple could not verify taasant is free of malware"](#apple-could-not-verify-taasant-is-free-of-malware). What the app does is under [The Mac app](#the-mac-app).
+
+### The command line (macOS, Linux and Windows)
+
+#### The quick way (macOS and Linux)
 
 One command downloads the right file and puts it in `/usr/local/bin`. No Go needed.
 
@@ -78,13 +100,13 @@ taasant keygen
 
 If that last command prints a long string of letters and numbers, you're set.
 
-### Updating
+#### Updating
 
 From version 0.2 on, run `taasant update`. Version 0.1 does not have that command, so install 0.2 once the same way as above.
 
 On Windows, download `taasant-windows.exe` from the [releases page](https://github.com/vedantlavale/taasant/releases/latest) and run it from a terminal.
 
-### "Apple could not verify taasant is free of malware"
+#### "Apple could not verify taasant is free of malware"
 
 You will see this on a Mac if you download the file with your browser instead of `curl`. Nothing is wrong with the file. Apple shows this for any program whose author hasn't paid for a developer certificate, and I haven't.
 
@@ -98,7 +120,7 @@ After that, carry on with the `chmod` and `mv` steps above. You can also go to S
 
 Downloading with `curl`, as shown above, skips the warning entirely. Also, don't double-click the file: taasant is a terminal program and has no window.
 
-### If you have Go
+#### If you have Go
 
 ```bash
 go install github.com/vedantlavale/taasant/cmd/taasant@latest
@@ -116,7 +138,18 @@ You need Go 1.27 or newer.
 
 ## Set it up
 
-This takes about five minutes, and you only do it once. Run `taasant` and it asks for what it needs.
+This takes about five minutes, and you only do it once. Open the Mac app, or run `taasant`, and it asks for what it needs. The app opens the same questions in a terminal window.
+
+**First, where should your files go?** The first question picks your default place:
+
+- **Telegram** is free, through a bot of your own. Follow the steps below.
+- **Cloudflare R2** (paid, no fee for downloads) asks for your account ID, the bucket's name, and an access key with its secret.
+- **Amazon S3** (paid) asks for the region, the bucket's name, and an access key with its secret.
+- **MinIO or other S3** asks for the server's address, the bucket's name, and a key. Use it for a Cloudflare bucket in the EU too, with its own address.
+
+For a bucket, taasant then tries it the way it will use it, with a small test file: write, read back, start and give up a big upload, delete. So a wrong key shows up now, not later. You can add more places later with `taasant setup`; see [Other places for your files](#other-places-for-your-files).
+
+**If you chose Telegram:**
 
 **1. Run `taasant`.** The first time, a setup screen opens. The menu comes after it.
 
@@ -147,6 +180,41 @@ export TAAS_KEY="64 hex characters, taasant keygen prints a new one"
 
 `TG_CHAT_ID` is the number of the place the files go. For a private channel it is negative and starts with `-100`, as above. For the chat with the bot it is a positive number, your own user ID. The Telegram app does not show either one. The easy way is to let the setup screen find it: run `taasant` once with `TAAS_CONFIG` set to a throwaway path, then read `chat_id` from that file.
 
+### Other places for your files
+
+Telegram is the free choice. If you would rather pay for storage, taasant also works with **Cloudflare R2**, **Amazon S3** and **MinIO**, and with any other service that speaks the S3 API. The first question in the setup screen asks which one you want, and `taasant setup` adds another later. You can keep several at once: one is the default, and each file remembers where it went, so downloads and deletes find it by themselves.
+
+```bash
+taasant upload report.pdf            # goes to your default place
+taasant upload --to r2 report.pdf    # goes to the place called "r2"
+taasant list                         # shows a WHERE column once you use more than one
+```
+
+To change which place new files go to, press **Make default** on its row in the app's Settings, or run `taasant default r2`. Nothing stored moves: files you already have stay in their places.
+
+The setup asks for what each service needs, then tries your bucket the way taasant will use it: it writes a small test file, reads it back, starts and gives up a big upload, and deletes the file. So a key that can only write shows up at once, not when you want a file. The files are encrypted on your computer, as with Telegram, and are stored under random names. A bucket holds files up to 156 GiB each.
+
+Setting up a place that already exists, with the same bucket, replaces its keys. A different bucket or bot is a new place (`r2-2`), because files are stored in the first one. A Cloudflare bucket in the EU has its own address: choose the last option in the setup (MinIO or other S3) and give it that address. If a file is not in the index, as with the backup of the index, give its place to `download` or `delete` with `--to`.
+
+For a bucket there are no environment variables, only the settings file. This is what `taasant` writes for R2, and you can write the same by hand. `default` is where new files go, and `backends` can hold several places.
+
+```json
+{
+  "key": "64 hex characters",
+  "default": "r2",
+  "backends": {
+    "r2": {
+      "type": "s3",
+      "endpoint": "https://<account id>.r2.cloudflarestorage.com",
+      "region": "auto",
+      "bucket": "my-bucket",
+      "access_key": "...",
+      "secret_key": "..."
+    }
+  }
+}
+```
+
 ## Using it
 
 There are two ways: a menu, and plain commands. Both do the same things.
@@ -171,15 +239,60 @@ While files are moving there is a line for each one. Esc cancels the ones that h
 
 ```bash
 taasant upload report.pdf          # store a file
+taasant setup                      # add a place for your files
+taasant default r2                 # make new files go to that place
 taasant list                       # see everything, newest first
 taasant list rep                   # search
 taasant download report            # get it back
 taasant download report copy.pdf   # get it back under another name
 taasant delete report              # remove it
+taasant mount                      # show the files as a drive in Finder (Mac)
+taasant autostart                  # show the drive at every login (Mac)
 taasant update                     # get the newest version of taasant
 ```
 
 Uploads and downloads show a progress bar that moves as the bytes go out. If the connection drops, taasant tries again a few times before it gives up.
+
+### A drive in Finder
+
+This is macOS only. On a Mac, `taasant mount` puts your files in Finder's sidebar, under **Locations**:
+
+```console
+$ taasant mount
+✓ the drive is in Finder, under Locations. Ctrl-C ejects it
+  saved holiday.jpg  45.0 MiB
+```
+
+The drive is called `taasant.localhost`. Drag files in to store them, drag them out or open them to get them back, and make folders, rename and delete as on any disk. It stays for as long as the command runs. Press Ctrl-C in the terminal, or eject the drive in Finder, to take it away.
+
+To have the drive without a terminal, run `taasant autostart` once. It is in Finder at once, and again at every login, with no window opened and nothing left running in a terminal. Eject it in Finder and it stays away until the next login. `taasant autostart off` stops it for good. Problems are written to `~/Library/Logs/taasant.log`. If you move or update the program, run `taasant autostart` again so the job points at it.
+
+No app is needed and nothing else has to be installed. taasant serves the files to Finder from your own computer, at an address other computers cannot reach.
+
+A few things work differently from a normal disk:
+
+- **A copy takes as long as the upload.** Finder is done with a file when the file is in Telegram, not before. Finder's own progress runs ahead of that, so watch the percent in the Mac app's menu bar icon, or its window, for the real one.
+- **Finder does not tell you when a copy to the drive failed.** taasant does, with a notification and a line in the terminal. The file is then not on the drive, so copy it again.
+- **Opening a file downloads it.** A big file starts to arrive after its first 19 MiB.
+- **Icon previews are off.** Finder draws them by reading the files, which would download every file it shows. taasant switches them off in the drive's window, and macOS may ask once whether your terminal may control Finder for that. A folder inside the drive has its own setting, under View → Show View Options.
+- **If a download breaks off halfway**, Finder waits for a minute or so and then reports an error.
+- **A folder is part of a file's name.** `taasant list` shows `photos/a.jpg`. Folders and files that are empty are not stored, and are forgotten when the drive is ejected.
+- **Deleting a file older than 48 hours** takes it off the drive, but Telegram keeps its messages. They are encrypted, and the terminal names the file.
+- **Two files with one name.** `taasant upload` lets you store the same name twice. The drive shows the newer one. Delete or rename it there and the older one shows up.
+
+### The Mac app
+
+**The Mac app and the drive in Finder work on macOS only.** On Linux and Windows, use the terminal program, which works everywhere. The app needs macOS 13 or newer (the glass look needs macOS 26, and older versions get a frosted one), on Apple silicon or Intel. Nothing else has to be installed, as the app has the `taasant` program inside it.
+
+If you would rather click than type, this is the Mac app: an icon in the menu bar and a window with your files. To install it, see [Install](#the-mac-app-macos-only): open `Taasant.dmg` and drag the app to Applications.
+
+- **The menu bar** is for the quick things. Drop files on the icon or on the panel to store them, watch them go, and save one of the last four files to Downloads. A button opens the window, and a menu connects or ejects the drive, starts it at login and quits. While you copy files to the drive in Finder, the icon shows the percent that has reached its place. Both the panel and the window use the macOS glass effect.
+- **The window** has everything else, in four sections. **Files** has search, filters by kind, sorting, and an Upload button whose arrow sends a file to a place other than the default; a tag shows where each file is once you have more than one place, and a delete asks first. **Transfers** shows what is moving, with a button to cancel it. **Drive** connects and ejects the drive and starts it at login. **Settings** lists your places, adds one, and lets you make any of them the default with a button on its row, without running setup again. It can also keep file names out of the menu bar for a screen share. Drop files anywhere on the window to upload them. Open the app again from Finder or Spotlight if you cannot see the icon.
+- **The first time**, the window and the panel offer to set taasant up. That opens a terminal and asks the same questions as `taasant` does, because tokens and keys are best pasted in there. **Add a place** in Settings runs `taasant setup` the same way.
+
+The app has the `taasant` program inside it and does everything through it, so the app and the terminal always see the same files. It has no developer certificate either, so the first time macOS says it cannot verify it. Press **Done**, then go to System Settings → Privacy & Security and press **Open Anyway**. Or run `xattr -dr com.apple.quarantine /Applications/Taasant.app`.
+
+To build it yourself, run `macos/build.sh`. It needs Go and Swift (the command line tools are enough) and leaves `macos/dist/Taasant.app`.
 
 ### In scripts
 
@@ -190,6 +303,8 @@ id=$(taasant upload backup.tar)
 ```
 
 Set `NO_COLOR=1` if you want plain text in a terminal too.
+
+Add `--json` to `list`, `upload`, `download` or `delete` for output a program can read. `taasant list --json` prints all files as one array, and an upload, download or delete prints `{"done":..,"total":..}` as it goes. This is what the Mac app uses.
 
 ### You don't have to type the whole name
 
@@ -203,25 +318,43 @@ If a file with that name already exists where you are, `download` stops with `fi
 
 ## What ends up where
 
-**In your Telegram channel or chat:** your files, as messages with an attachment called `part.bin`. A small file is two messages (the file and a tiny list of its parts). A big one is several. They are encrypted, so opening one from the Telegram app gets you nothing useful. Always use `taasant download`.
+**In your places.** In a Telegram channel or chat: your files, as messages with an attachment called `part.bin`. A small file is two messages (the file and a tiny list of its parts). A big one is several. They are encrypted, so opening one from the Telegram app gets you nothing useful. Always use `taasant download`.
 
-**On your computer:** a list of what you have uploaded, called the index. It lives at `~/Library/Application Support/taas/index.json` on a Mac and `~/.config/taas/index.json` on Linux. Set `TAAS_INDEX` if you want it somewhere else.
+In a bucket, each file is one object with a random name, made of encrypted 16 MiB parts. File names are not stored there, only in your index.
 
-**A backup of that list:** every time you upload or delete, taasant also sends an encrypted copy of the index to the same place, and notes where it is in a file called `index.json.remote` next to the index. Each backup adds a couple of messages to the channel or chat, so expect some clutter.
+**On your computer:** your settings, and a list of what you have uploaded, called the index. It lives at `~/Library/Application Support/taas/index.json` on a Mac and `~/.config/taas/index.json` on Linux. Set `TAAS_INDEX` if you want it somewhere else.
+
+**A backup of that list:** every time you upload or delete, taasant also sends an encrypted copy of the index to your default place, and notes where it is in a file called `index.json.remote` next to the index: the place, then the ID. Each backup adds a couple of messages to a Telegram channel or chat, so expect some clutter. To get it back on another computer, run `taasant download --to <place> <id> index.json`.
 
 ## Things worth knowing
 
 - **Lose the key, lose the files.** Yes, this is here twice.
-- **Look after the index.** If you lose it, your files are still in the channel or chat, but taasant no longer knows which messages are which. Copying the `taas` folder somewhere safe now and then is enough.
-- **You can only delete recent files.** Telegram lets a bot delete messages for 48 hours after sending them. After that, `taasant delete` will fail, and you would have to remove the messages by hand in the app.
-- **Big files need memory.** Files are handled in 19 MiB parts and several are in memory at once. A very large download can use a lot, because all its parts are fetched together.
-- **Use a second Telegram account for the bot.** Telegram might restrict a bot that is used for storage, so keep your main account out of it.
+- **Look after the index.** If you lose it, your files are still in their places, but taasant no longer knows which is which. Copying the `taas` folder somewhere safe now and then is enough.
+- **Old files leave messages behind.** Telegram lets a bot delete messages for 48 hours after sending them. Deleting an older file still takes it off the drive, but its encrypted messages stay in the chat. taasant names the file when that happens.
+- **Big files need memory.** In Telegram, files are handled in 19 MiB parts and several are in memory at once, so a very large download can use a lot. A bucket uses 16 MiB parts, a few at a time, and holds files up to 156 GiB.
+- **A bucket is paid storage.** You are billed for what is in it. If a delete from a bucket fails, the file stays on your list so you can try again.
+- **Use a second Telegram account for the bot** if you use Telegram. It might restrict a bot that is used for storage, so keep your main account out of it.
 - **One computer.** The index is not synced. If you use taasant on two machines, each has its own list.
 
 ## When something goes wrong
 
-**`there is no bot token, run "taasant" in a terminal to set up`**
-taasant has not been set up on this computer. Run `taasant` with nothing after it and answer its questions.
+**`there is nowhere to store files yet, run "taasant" in a terminal to set up`**, or **`there is no bot token`**
+taasant has not been set up on this computer. Run `taasant` with nothing after it (or `taasant setup`) and answer its questions, or press **Open setup** in the Mac app.
+
+**`"r2" is not set up, the places you can use are: ...`**
+The place you named with `--to`, or that a file was stored in, is not in your settings file. Use one of the names listed, or add it with `taasant setup`.
+
+**`AccessDenied` or `SignatureDoesNotMatch` (a bucket)**
+The access key or its secret is wrong, or the key may not do what taasant needs: read, write and delete objects, and multipart uploads. Check them, then run `taasant setup` again with the same bucket to replace the keys.
+
+**`NoSuchBucket`, or `the endpoint of the storage must start with https://`**
+The bucket's name or the address is wrong. A Cloudflare account ID is 32 letters and numbers.
+
+**`this ID is not in the index, so say which place it is in with --to <place>`**
+The file is not on your list, as with the backup of the index. Add its place: `taasant download --to r2 <id> index.json`.
+
+**The Mac app will not open, or I cannot see its icon**
+Open **System Settings → Privacy & Security** and press **Open Anyway**. If the menu bar is too full for the icon, open Taasant again from Finder or Spotlight to get its window.
 
 **`the bot can't send messages to the bot`**
 Your `TG_CHAT_ID` is a bot's ID. This usually means you used the number at the start of the token. Use the number @userinfobot gave you, or let the setup screen find the place for you.
@@ -249,18 +382,21 @@ The key is missing or got cut off when it was pasted. If you set `TAAS_KEY` your
 
 ## How it works, briefly
 
-A bot can upload files up to 50 MB but can only download ones up to 20 MB, so taasant cuts every file into 19 MiB parts. Each part is encrypted with AES-256-GCM and sent as its own message. Then it sends one more small encrypted file, the manifest, which lists the parts in order. The manifest's ID is what gets saved in your index next to the file name.
+In Telegram: A bot can upload files up to 50 MB but can only download ones up to 20 MB, so taasant cuts every file into 19 MiB parts. Each part is encrypted with AES-256-GCM and sent as its own message. Then it sends one more small encrypted file, the manifest, which lists the parts in order. The manifest's ID is what gets saved in your index next to the file name.
 
 Downloading does the reverse: look up the name, fetch the manifest, fetch the parts, decrypt them, and write them out in order.
+
+In a bucket, a file is one object cut into chunks of 16 MiB, each sealed on its own with its object, its place and whether it is the last bound in, so a chunk cannot be swapped, dropped or cut short unnoticed. The chunks go up as the parts of a multipart upload, and a read of part of a file asks only for that range, which is how the Finder drive opens a big video without downloading it all. Requests are signed by taasant itself, with no outside library. The Mac app stores nothing itself: it runs the `taasant` program inside it and shows what it prints.
 
 ## Working on the code
 
 ```bash
-go test ./...          # no token or internet needed, it uses a fake Telegram
+go test ./...          # no token or internet needed, it uses a fake Telegram and a fake S3
 go test -race ./...    # also checks for concurrency mistakes
+macos/build.sh arm64   # the Mac app and Taasant.dmg, for this Mac only
 ```
 
-`cmd/taasant/` is the command line and the index. `tgstore/` does the splitting, the encryption and the talking to Telegram.
+`cmd/taasant/` is the command line, the setup screens, the settings, the index and the drive. `tgstore/` does the splitting, the encryption and the talking to Telegram. `s3store/` does the same for buckets. `macos/` is the Mac app, written in Swift, and `macos/build.sh` also makes `Taasant.dmg` with its installer window; `macos/dmg/make-background.py` draws the picture behind the icons.
 
 ## Credits
 

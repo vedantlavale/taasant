@@ -4,6 +4,7 @@ import (
 	"context"
 	"maps"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -11,8 +12,6 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-
-	"github.com/vedantlavale/taasant/tgstore"
 )
 
 var menuItems = []struct{ name, about, action string }{
@@ -63,9 +62,8 @@ type model struct {
 	width, height int
 	notice        string // a problem to show on the current screen
 
-	store     *tgstore.Store
-	key       []byte
-	setup     error // why store and key are missing, if they are
+	vault     *vault
+	setup     error // why the vault is missing, if it is
 	indexFile string
 	entries   []entry // the stored files, newest first
 
@@ -128,7 +126,7 @@ func newModel() (model, error) {
 		dir = string(filepath.Separator)
 	}
 	m := model{width: 80, height: 24, indexFile: indexFile, entries: entries, startDir: dir, dir: dir, marked: map[string]int64{}}
-	m.store, m.key, m.setup = connect()
+	m.vault, m.setup = connect()
 	return m, nil
 }
 
@@ -342,7 +340,7 @@ func (m model) listKey(key string) (model, tea.Cmd) {
 	switch key {
 	case "enter":
 		if m.action == "download" {
-			return m.start([]job{{action: "download", name: e.Name, size: e.Size, entry: e, path: filepath.Join(m.startDir, e.Name)}})
+			return m.start([]job{{action: "download", name: e.Name, size: e.Size, entry: e, path: filepath.Join(m.startDir, path.Base(e.Name))}})
 		}
 		m.confirm = m.action == "delete"
 	case "esc", "left":
@@ -379,11 +377,11 @@ func (m model) begin() (model, tea.Cmd) {
 		var err error
 		switch j.action {
 		case "upload":
-			_, err = addFile(m.ctx, m.store, m.key, m.indexFile, j.path, report)
+			_, err = addFile(m.ctx, m.vault, "", m.indexFile, j.path, report)
 		case "download":
-			err = download(m.ctx, m.store, m.key, j.entry, j.path, report)
+			err = download(m.ctx, m.vault, j.entry, j.path, report)
 		case "delete":
-			err = removeFile(m.ctx, m.store, m.key, m.indexFile, j.entry)
+			_, err = removeFile(m.ctx, m.vault, j.entry, m.indexFile, nil)
 		}
 		return finished{err}
 	}
@@ -413,7 +411,7 @@ func (m model) jobEnded(err error) (model, tea.Cmd) {
 	if m.changed && !m.quitting {
 		m.changed = false
 		return m, func() tea.Msg {
-			return backedUp{backupIndex(context.Background(), m.store, m.key, m.indexFile)}
+			return backedUp{backupIndex(context.Background(), m.vault, m.indexFile)}
 		}
 	}
 	return m.rest()

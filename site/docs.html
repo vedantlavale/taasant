@@ -367,6 +367,8 @@
     <h6>Guides</h6>
     <a href="#usage" data-page="usage">Using taasant</a>
     <a href="#matching" data-page="matching">Finding files by name</a>
+    <a href="#places" data-page="places">Places for your files</a>
+    <a href="#mac" data-page="mac">Mac app and Finder drive</a>
     <h6>Reference</h6>
     <a href="#storage" data-page="storage">What ends up where</a>
     <a href="#limits" data-page="limits">Limits</a>
@@ -387,12 +389,19 @@
 
       <!-- ================= INTRODUCTION ================= -->
       <section class="page" id="p-introduction" data-title="Introduction" data-group="Get started">
-        <h1>An encrypted drive in your Telegram chat</h1>
-        <p class="lede">Telegram lets a bot store files in a chat for free. taasant turns that into an encrypted drive you use from the terminal: upload, list, download and delete by name.</p>
+        <h1>An encrypted drive for your files</h1>
+        <p class="lede">taasant keeps your files encrypted, in a Telegram chat for free or in your own bucket on Cloudflare R2, Amazon S3 or MinIO. You choose where, and you can use more than one. Upload, list, download and delete by name, from a <strong>Mac app</strong> or from the <strong>terminal</strong>.</p>
         <div class="btns">
           <a class="btn primary" href="#install">Install taasant <svg class="i"><use href="#i-arrow"/></svg></a>
           <a class="btn" href="#setup">Set it up</a>
         </div>
+
+        <h2 id="two-ways">Two ways to use it</h2>
+        <div class="rows">
+          <div class="row"><h3>The Mac app</h3><p>An icon in the menu bar to drop files on, a window to find and manage them, and your files as a drive in Finder. Download <code>Taasant.dmg</code>, open it and drag the app to Applications. <strong>macOS only.</strong> See <a href="#mac">Mac app and Finder drive</a>.</p></div>
+          <div class="row"><h3>The command line</h3><p>One small program for macOS, Linux and Windows, with a menu and one command per job. It is also what runs inside the app, so the two always see the same files. See <a href="#install">Install</a>.</p></div>
+        </div>
+        <p>You do not need both. Pick the one you like, and add the other any time: they share the same settings and the same list of files.</p>
 
         <div class="code nobar" data-nocopy>
 <pre><span class="p">$ </span>taasant upload holiday.jpg
@@ -412,15 +421,16 @@
 
         <h2 id="why">What you get</h2>
         <div class="rows">
-          <div class="row"><h3>Encrypted before upload</h3><p>Every part is encrypted on your computer with AES-256-GCM. Telegram only ever sees scrambled bytes.</p></div>
+          <div class="row"><h3>Encrypted before upload</h3><p>Every part is encrypted on your computer with AES-256-GCM. Telegram or your bucket only ever sees scrambled bytes.</p></div>
+          <div class="row"><h3>Your choice of place</h3><p>Telegram is free. Cloudflare R2, Amazon S3, MinIO and any service with an S3 address are paid, and you can keep several at once and pick one per upload. See <a href="#places">Places for your files</a>.</p></div>
           <div class="row"><h3>Big files, handled</h3><p>Large files are split into parts and put back together for you. No manual chunking.</p></div>
           <div class="row"><h3>Names, not IDs</h3><p>Get files back by name. Type part of it, or just a few of its letters.</p></div>
-          <div class="row"><h3>A menu or commands</h3><p>Run <code>taasant</code> in a folder to pick files with the arrow keys, or use one command per job. See <a href="#usage">Using taasant</a>.</p></div>
-          <div class="row"><h3>One small binary</h3><p>Written in Go. Download it, run it, done.</p></div>
+          <div class="row"><h3>An app, a menu or commands</h3><p>A Mac app with a menu bar icon and a Finder drive, or run <code>taasant</code> in a folder to pick files with the arrow keys, or use one command per job. See <a href="#usage">Using taasant</a>.</p></div>
+          <div class="row"><h3>One small program</h3><p>Written in Go. Download it, run it, done.</p></div>
         </div>
 
         <h2 id="telegram-sees">What Telegram sees</h2>
-        <p>Your channel or chat holds files called <code>part.bin</code>. Without your key, they are noise.</p>
+        <p>Your channel or chat holds files called <code>part.bin</code>. A bucket holds objects with random names. Without your key, both are noise.</p>
         <div class="split">
           <div class="code" data-nocopy>
             <div class="bar"><span class="tag you">You</span></div>
@@ -451,7 +461,20 @@ e61b87d5a30c94f2
       <!-- ================= INSTALL ================= -->
       <section class="page" id="p-install" data-title="Install" data-group="Get started">
         <h1>Install</h1>
-        <p class="lede">Download a single binary for your platform. No Go toolchain needed unless you want to build from source.</p>
+        <p class="lede">There are two downloads. Take the <a href="#install-app">Mac app</a> if you are on a Mac and would rather click, or the <a href="#install-cli">command-line program</a> for any system. Nothing else needs to be installed.</p>
+
+        <h2 id="install-app">The Mac app (macOS only)</h2>
+        <p>The app needs macOS 13 or newer, on Apple silicon or Intel. It has the command-line program inside it.</p>
+        <ol>
+          <li>Download <code>Taasant.dmg</code> from the <a href="https://github.com/vedantlavale/taasant/releases/latest">releases page</a> and open it.</li>
+          <li>In the window that opens, drag <strong>Taasant</strong> onto <strong>Applications</strong>.</li>
+          <li>Eject the disk image, then open <strong>Taasant</strong> from Applications. Its icon appears in the menu bar.</li>
+          <li>The first time, macOS says it cannot verify the app. See <a href="#mac-warning">“Apple could not verify taasant”</a>.</li>
+        </ol>
+        <p>What it does is on <a href="#mac">Mac app and Finder drive</a>. The first time it opens, it offers to set taasant up.</p>
+
+        <h2 id="install-cli">The command-line program</h2>
+        <p>Download a single program for your system. No Go toolchain needed unless you want to build from source.</p>
 
         <p>On macOS or Linux, one command downloads the right file and puts it in <code>/usr/local/bin</code>:</p>
         <div class="code"><div class="bar"><span>bash</span></div>
@@ -506,11 +529,13 @@ go build -o taasant ./cmd/taasant</pre></div>
         <p>If <code>taasant keygen</code> prints a long string of letters and numbers, the install worked.</p>
 
         <h2 id="mac-warning">“Apple could not verify taasant”</h2>
-        <p>You will see this on a Mac if you download the file with your browser instead of <code>curl</code>. Nothing is wrong with the file. macOS shows it for any program whose author has not paid for an Apple developer certificate.</p>
-        <p>Click <strong>Done</strong> (not “Move to Bin”), then tell macOS you trust it:</p>
+        <p>You will see this on a Mac for the app, and for the program if you download it with your browser instead of <code>curl</code>. Nothing is wrong with the files. macOS shows it for anything whose author has not paid for an Apple developer certificate.</p>
+        <p>For the app, click <strong>Done</strong> (not “Move to Bin”), open <strong>System Settings → Privacy &amp; Security</strong> and press <strong>Open Anyway</strong>. Or run this once:</p>
+        <div class="code"><div class="bar"><span>bash</span></div>
+<pre data-lang="bash">xattr -dr com.apple.quarantine /Applications/Taasant.app</pre></div>
+        <p>For the program, click <strong>Done</strong> and tell macOS you trust it, then carry on with the <code>chmod</code> and <code>mv</code> steps:</p>
         <div class="code"><div class="bar"><span>bash</span></div>
 <pre data-lang="bash">xattr -d com.apple.quarantine ~/Downloads/taasant-macos-arm64</pre></div>
-        <p>Then carry on with the <code>chmod</code> and <code>mv</code> steps. You can also open <strong>System Settings → Privacy &amp; Security</strong> and press <strong>Open Anyway</strong>.</p>
         <div class="callout">
           <svg class="i"><use href="#i-info"/></svg>
           <div><p>Downloading with <code>curl</code>, as shown above, skips the warning entirely. Don't double-click the file: taasant is a terminal program and has no window.</p></div>
@@ -520,8 +545,20 @@ go build -o taasant ./cmd/taasant</pre></div>
       <!-- ================= SETUP ================= -->
       <section class="page" id="p-setup" data-title="Set it up" data-group="Get started">
         <h1>Set it up</h1>
-        <p class="lede">About five minutes, once. The first time you run taasant, it asks for what it needs and saves it.</p>
+        <p class="lede">About five minutes, once. The first time you run taasant, from the terminal or from the Mac app, it asks where your files should go, then for what that place needs, and saves it. The app opens the same questions in a terminal window.</p>
 
+        <h2 id="choose-place">First: where should your files go?</h2>
+        <p>The first question picks your default place. You can add more later with <code>taasant setup</code>, or <strong>Add a place</strong> in the app's Settings.</p>
+        <div class="table-wrap"><table>
+          <tr><th>Choice</th><th>What it costs</th><th>What it asks for</th></tr>
+          <tr><td>Telegram</td><td>Free</td><td>A bot token and a channel or chat. Follow the steps below.</td></tr>
+          <tr><td>Cloudflare R2</td><td>Paid, no fee for downloads</td><td>Account ID, bucket name, an access key and its secret. A bucket in the EU needs the last choice, with its own address.</td></tr>
+          <tr><td>Amazon S3</td><td>Paid</td><td>Region, bucket name, an access key and its secret.</td></tr>
+          <tr><td>MinIO or other S3</td><td>Depends</td><td>The server's address, bucket name, an access key and its secret.</td></tr>
+        </table></div>
+        <p>For a bucket, taasant then tries it the way it will use it: it writes a small test file, reads it back, starts and gives up a big upload, and deletes the file. A key that can only write, or a wrong bucket name, shows up right there. See <a href="#places">Places for your files</a>.</p>
+
+        <h2 id="setup-telegram">If you chose Telegram</h2>
         <div class="callout warn">
           <svg class="i"><use href="#i-alert"/></svg>
           <div><b>Tip: use a second Telegram account</b>
@@ -533,7 +570,7 @@ go build -o taasant ./cmd/taasant</pre></div>
             <h3>Run taasant</h3>
             <div class="code"><div class="bar"><span>bash</span></div>
 <pre data-lang="bash">taasant</pre></div>
-            <p>The first time, a setup screen opens. The menu comes after it.</p>
+            <p>The first time, a setup screen opens. Choose Telegram. The menu comes after it.</p>
           </li>
           <li>
             <h3>Make a bot and paste its token</h3>
@@ -560,7 +597,7 @@ go build -o taasant ./cmd/taasant</pre></div>
         <p>The setup screen is new in version 0.3. On an older version, run <code>taasant update</code> first.</p>
 
         <h2 id="settings">Where the settings are kept</h2>
-        <p>The bot token, the channel or chat and the key are saved in one file that only your user account can read.</p>
+        <p>Your places, which one is the default, and the key are saved in one file that only your user account can read. Bot tokens and bucket keys are in it, so treat it like a password. A settings file from before there were several places keeps working: it is read as one place called <code>telegram</code>.</p>
         <div class="table-wrap"><table>
           <tr><th>System</th><th>Settings file</th></tr>
           <tr><td>macOS</td><td><code>~/Library/Application Support/taas/config.json</code></td></tr>
@@ -570,7 +607,7 @@ go build -o taasant ./cmd/taasant</pre></div>
         </table></div>
 
         <h2 id="env">Environment variables</h2>
-        <p>Every one is optional. One that is set wins over the settings file, which is useful in scripts. A setup made before version 0.3 with these three variables keeps working as it is.</p>
+        <p>Every one is optional. One that is set wins over the settings file, which is useful in scripts. A setup made before version 0.3 with these three variables keeps working as it is. The three <code>TG_</code> and <code>TAAS_KEY</code> variables describe the Telegram place; a bucket has no variables, only the settings file (see <a href="#places/places-by-hand">Writing the settings by hand</a>).</p>
         <div class="table-wrap"><table>
           <tr><th>Variable</th><th>What it is</th></tr>
           <tr><td><code>TG_BOT_TOKEN</code></td><td>Token from @BotFather.</td></tr>
@@ -676,13 +713,17 @@ taasant</pre></div>
         <h2 id="commands">Commands</h2>
         <p>The same things, one command each. Use these in scripts, or when you already know the file's name.</p>
         <div class="code"><div class="bar"><span>bash</span></div>
-<pre data-lang="bash">taasant upload report.pdf          # store a file
+<pre data-lang="bash">taasant upload report.pdf          # store a file, in your default place
+taasant upload --to r2 report.pdf  # store it in the place called "r2"
 taasant list                       # see everything, newest first
 taasant list rep                   # search
 taasant download report            # get it back
 taasant download report copy.pdf   # get it back under another name
 taasant delete report              # remove it
+taasant setup                      # add a place for your files, or fix one
+taasant default r2                 # make new files go to that place
 taasant update                     # get the newest version of taasant</pre></div>
+        <p>Each file remembers where it was stored, so <code>download</code> and <code>delete</code> find it by themselves. Only a file that is not in the list, such as the backup of the index, needs <code>--to</code>. See <a href="#places">Places for your files</a>.</p>
         <p>You don't have to type the whole name. See <a href="#matching">Finding files by name</a>.</p>
 
         <h2 id="progress">Progress</h2>
@@ -727,29 +768,120 @@ taasant update                     # get the newest version of taasant</pre></di
       </section>
 
       <!-- ================= STORAGE ================= -->
+      <section class="page" id="p-places" data-title="Places for your files" data-group="Guides">
+        <h1>Places for your files</h1>
+        <p class="lede">A place is where your files are stored. Telegram is the free one. If you would rather pay for storage, taasant also works with Cloudflare R2, Amazon S3, MinIO and any other service that speaks the S3 API. You can have several places at once.</p>
+
+        <h2 id="places-choose">Choosing</h2>
+        <p>The first question in the setup picks your <strong>default</strong> place, where new files go. <code>taasant setup</code> adds another, and so does <strong>Add a place</strong> in the Mac app. Each file remembers its place, so a download or delete goes to the right one by itself.</p>
+        <div class="code"><div class="bar"><span>bash</span></div>
+<pre data-lang="bash">taasant upload report.pdf            # goes to your default place
+taasant upload --to r2 report.pdf    # goes to the place called "r2"
+taasant list                         # shows a WHERE column once you use more than one</pre></div>
+        <p>To change the default without running setup again, press <strong>Make default</strong> on the place's row in the Mac app's Settings, or run <code>taasant default r2</code>. Files you already have stay where they are.</p>
+
+        <h2 id="places-buckets">Buckets: R2, S3, MinIO</h2>
+        <p>The files are encrypted on your computer first, as with Telegram, and stored under random names. A file is one object in your bucket, cut into sealed parts that cannot be swapped, dropped or cut short without being found out. A bucket holds files up to 156 GiB each.</p>
+        <p>The key you give taasant needs to read, write and delete objects, and to start and give up multipart uploads. Setup checks all of that with a small test file, so a wrong key shows up at once.</p>
+        <ul>
+          <li><strong>Cloudflare R2:</strong> the account ID is on the right of the R2 page in the Cloudflare dashboard. Make an API token that can read and write objects. A bucket in the EU has its own address (<code>&lt;id&gt;.eu.r2.cloudflarestorage.com</code>): choose <em>MinIO or other S3</em> and give it that address.</li>
+          <li><strong>Amazon S3:</strong> the region where the bucket is, such as <code>eu-west-1</code>, and an IAM user with read and write access to that bucket.</li>
+          <li><strong>MinIO or another S3 service:</strong> the server's address (<code>https://…</code> or <code>http://localhost:9000</code>), the bucket and a key.</li>
+        </ul>
+        <p>Bucket names are 3 to 63 lowercase letters, numbers, dots and dashes.</p>
+
+        <h2 id="places-same">The same place again, or another</h2>
+        <p>Setting up a place that already exists, with the same bucket or bot, replaces its keys, which is how a wrong key is fixed. A <em>different</em> bucket or bot becomes a new place (<code>r2-2</code>), because your files are stored in the first one and would be lost to you if it were replaced.</p>
+
+        <h2 id="places-by-hand">Writing the settings by hand</h2>
+        <p>For a bucket there are no environment variables, only the settings file. <code>default</code> is where new files go, and <code>backends</code> can hold several places.</p>
+        <div class="code"><div class="bar"><span>json</span></div>
+<pre data-lang="json">{
+  "key": "64 hex characters",
+  "default": "r2",
+  "backends": {
+    "r2": {
+      "type": "s3",
+      "endpoint": "https://&lt;account id&gt;.r2.cloudflarestorage.com",
+      "region": "auto",
+      "bucket": "my-bucket",
+      "access_key": "...",
+      "secret_key": "..."
+    }
+  }
+}</pre></div>
+
+        <h2 id="places-delete">Deleting</h2>
+        <p>Telegram only lets a bot delete messages for 48 hours. After that, taasant takes the file off your list and tells you its messages are still in the chat. For a bucket, a delete that fails keeps the file on your list, so you can try again: an object left in a bucket is stored, and billed, without anyone seeing it.</p>
+      </section>
+
+      <section class="page" id="p-mac" data-title="Mac app and Finder drive" data-group="Guides">
+        <h1>Mac app and Finder drive</h1>
+        <p class="lead">On a Mac, taasant can also be an app in the menu bar and a drive in Finder. <strong>Both are for macOS only.</strong> On Linux and Windows, use the command-line program, which works everywhere. The app and the program share their settings and their list of files, so you can use either, or both.</p>
+
+        <h2 id="mac-needs">What you need</h2>
+        <ul>
+          <li>A Mac, Apple silicon or Intel, on macOS 13 or newer. The glass look needs macOS 26; older versions get a frosted look instead.</li>
+          <li>Nothing else. The app has the <code>taasant</code> program inside it, so you do not need to install it separately.</li>
+        </ul>
+
+        <h2 id="mac-install">Install the app</h2>
+        <ol>
+          <li>Download <code>Taasant.dmg</code> from the <a href="https://github.com/vedantlavale/taasant/releases/latest">releases page</a> and open it.</li>
+          <li>In the window that opens, drag <strong>Taasant</strong> onto <strong>Applications</strong>, then eject the disk image.</li>
+          <li>Open <strong>Taasant</strong> from Applications. The first time macOS says it cannot verify the app, because it has no Apple developer certificate. Press <strong>Done</strong>, then open <strong>System Settings → Privacy &amp; Security</strong> and press <strong>Open Anyway</strong>. Or run this once:</li>
+        </ol>
+        <div class="code"><div class="bar"><span>bash</span></div>
+<pre data-lang="bash">xattr -dr com.apple.quarantine /Applications/Taasant.app</pre></div>
+        <p>The first time it opens, it offers to set taasant up. That opens a terminal with the same questions as <code>taasant</code>, because tokens and keys are best pasted there. <strong>Add a place</strong> in Settings runs <code>taasant setup</code> the same way.</p>
+
+        <h2 id="mac-menu-bar">The menu bar</h2>
+        <p>Drop files on the icon or on its panel to store them, watch them go, and save one of the last four files to Downloads. A button opens the window. The menu connects or ejects the drive, starts it at login, and quits. Open the app again from Finder or Spotlight if you cannot see the icon.</p>
+
+        <h2 id="mac-window">The window</h2>
+        <ul>
+          <li><strong>Files:</strong> search, filter by kind, sort, and Upload. The arrow beside Upload sends a file to a place other than the default. A tag shows where each file is once you have more than one place.</li>
+          <li><strong>Transfers:</strong> what is moving, with a button to cancel it.</li>
+          <li><strong>Drive:</strong> connect or eject the drive, and start it at login.</li>
+          <li><strong>Settings:</strong> your places, a <strong>Make default</strong> button on each other place, and a switch to keep file names out of the menu bar for a screen share.</li>
+        </ul>
+
+        <h2 id="mac-drive">The drive in Finder</h2>
+        <p>Your files show up in Finder's sidebar under <strong>Locations</strong>, as <code>taasant.localhost</code>. Drag files in to store them, drag them out or open them to get them back. Without the app, run <code>taasant mount</code>, or <code>taasant autostart</code> once to have it at every login and <code>taasant autostart off</code> to stop. Problems are written to <code>~/Library/Logs/taasant.log</code>.</p>
+        <p>The drive only answers Finder on your own computer. A copy into it finishes when the upload to your place finishes, which is after Finder says it is done, so watch the percent in the menu bar icon.</p>
+
+        <h2 id="mac-build">Build it yourself</h2>
+        <p>Run <code>macos/build.sh</code>. It needs Go and Swift (the command line tools are enough) and leaves <code>macos/dist/Taasant.app</code> and <code>macos/dist/Taasant.dmg</code>, the installer people download.</p>
+      </section>
+
       <section class="page" id="p-storage" data-title="What ends up where" data-group="Reference">
         <h1>What ends up where</h1>
-        <p class="lede">Your files live in Telegram. The list of what you uploaded lives on your computer.</p>
+        <p class="lede">Your files live in your places: Telegram, a bucket, or both. The list of what you uploaded, and your settings, live on your computer.</p>
 
         <h2 id="in-chat">In your Telegram chat</h2>
         <p>Your files, as messages with an attachment called <code>part.bin</code>. A small file is two messages: the file and a tiny list of its parts. A big one is several. They are encrypted, so opening one from the Telegram app gets you nothing useful.</p>
 
+        <h2 id="in-bucket">In your bucket</h2>
+        <p>Each file is one object with a random name, such as <code>7c5146490ec66c8692902f90546ce48e</code>. Inside it is a row of encrypted parts of 16 MiB. The index backup (below) is an object too. File names are not in the bucket at all, only in your index.</p>
+
         <h2 id="on-computer">On your computer</h2>
-        <p>Your settings, in <code>config.json</code> (see <a href="#setup">Set it up</a>), and a list of what you have uploaded, called the <strong>index</strong>. Both are in the same folder.</p>
+        <p>Your settings, in <code>config.json</code> (see <a href="#setup">Set it up</a>), and a list of what you have uploaded, called the <strong>index</strong>. Both are in the same folder. Each entry in the index says which place holds the file; entries from before there were several places are in Telegram.</p>
         <div class="table-wrap"><table>
           <tr><th>System</th><th>Index location</th></tr>
           <tr><td>macOS</td><td><code>~/Library/Application Support/taas/index.json</code></td></tr>
           <tr><td>Linux</td><td><code>~/.config/taas/index.json</code></td></tr>
           <tr><td>Anywhere</td><td>Set <code>TAAS_INDEX</code> to use a path of your choice.</td></tr>
         </table></div>
+        <p>The Mac app reads the same files, and follows <code>TAAS_CONFIG</code> and <code>TAAS_INDEX</code> too. While files are being copied to the Finder drive, the app also reads a small <code>index.json.progress</code> file next to the index.</p>
 
         <h2 id="backup">A backup of that list</h2>
-        <p>Every time you upload or delete, taasant also sends an encrypted copy of the index to the same place, and notes where it is in a file called <code>index.json.remote</code> next to the index. Each backup adds a couple of messages to the channel or chat, so expect some clutter.</p>
+        <p>Every time you upload or delete, taasant sends an encrypted copy of the index to your default place, and notes where it is in a file called <code>index.json.remote</code> next to the index: the place, then the ID. Only one copy is kept: the one before it is deleted once the new one is safe. (Telegram refuses to delete messages older than 48 hours, so some old copies can stay in a chat.)</p>
+        <p>To get the list back on another computer, run <code>taasant download --to &lt;place&gt; &lt;id&gt; index.json</code>, with the place and ID from that note.</p>
 
         <div class="callout warn">
           <svg class="i"><use href="#i-alert"/></svg>
           <div><b>Look after the index</b>
-          <p>If you lose it, your files are still in the channel or chat, but taasant no longer knows which messages are which. Copying the <code>taas</code> folder somewhere safe now and then is enough.</p></div>
+          <p>If you lose it, your files are still in their places, but taasant no longer knows which is which. Copying the <code>taas</code> folder somewhere safe now and then is enough, and it holds the key too.</p></div>
         </div>
       </section>
 
@@ -760,9 +892,11 @@ taasant update                     # get the newest version of taasant</pre></di
 
         <div class="rows">
           <div class="row"><h3>Lose the key, lose the files</h3><p>The key is the only thing that can decrypt them. Keep a copy in a password manager.</p></div>
-          <div class="row"><h3>Delete window</h3><p>Telegram lets a bot delete messages for 48 hours after sending them. After that, <code>taasant delete</code> fails and you would have to remove the messages by hand in the app.</p></div>
-          <div class="row"><h3>Memory</h3><p>Files are handled in 19 MiB parts and several are in memory at once. A very large download can use a lot, because all its parts are fetched together.</p></div>
-          <div class="row"><h3>One computer</h3><p>The index is not synced. If you use taasant on two machines, each has its own list.</p></div>
+          <div class="row"><h3>Delete window (Telegram)</h3><p>Telegram lets a bot delete messages for 48 hours after sending them. After that, the file comes off your list, and its encrypted messages stay in the chat until you remove them by hand in the app.</p></div>
+          <div class="row"><h3>Bucket costs and size</h3><p>A bucket is paid storage: you are billed for what is in it, so a failed delete keeps the file on your list for another try. One file can be up to 156 GiB.</p></div>
+          <div class="row"><h3>Memory</h3><p>Telegram files are handled in 19 MiB parts and several are in memory at once, so a very large download can use a lot. A bucket uses 16 MiB parts and a few at a time.</p></div>
+          <div class="row"><h3>One computer</h3><p>The index is not synced. If you use taasant on two machines, each has its own list. The backup of the index lets you get one back, see <a href="#storage/backup">A backup of that list</a>.</p></div>
+          <div class="row"><h3>The app is for macOS only</h3><p>The Mac app and the drive in Finder need macOS 13 or newer. On Linux and Windows, use the command-line program.</p></div>
           <div class="row"><h3>Telegram's terms</h3><p>Under its <a href="https://telegram.org/tos/bot-developers">bot developer terms</a>, Telegram might restrict a bot that is used for storage. To be safe, make the bot from a second account, keep another copy of your files, and be reasonable about how much you store.</p></div>
         </div>
       </section>
@@ -772,6 +906,20 @@ taasant update                     # get the newest version of taasant</pre></di
         <h1>Troubleshooting</h1>
         <p class="lede">Find your error message below.</p>
 
+        <details><summary>there is nowhere to store files yet, run "taasant" in a terminal to set up</summary>
+          <div><p>No place is set up on this computer. Run <code>taasant</code> with nothing after it (or <code>taasant setup</code>) and answer its questions, or open the Mac app and press <strong>Open setup</strong>. See <a href="#setup">Set it up</a>.</p></div></details>
+        <details><summary>"r2" is not set up, the places you can use are: …</summary>
+          <div><p>The place you named with <code>--to</code>, or that a file was stored in, is not in your settings file. Use one of the names listed, or add it with <code>taasant setup</code>.</p></div></details>
+        <details><summary>AccessDenied, or SignatureDoesNotMatch (a bucket)</summary>
+          <div><p>The access key or its secret is wrong, or the key may not do what taasant needs. It needs to read, write and delete objects and to run multipart uploads on that bucket. Check them, then run <code>taasant setup</code> again with the same bucket to replace the keys.</p></div></details>
+        <details><summary>NoSuchBucket, or the endpoint must start with https://</summary>
+          <div><p>The bucket name or the address is wrong. For Cloudflare R2 the account ID is 32 letters and numbers, and a bucket in the EU has its own address, for which you choose <em>MinIO or other S3</em> in the setup.</p></div></details>
+        <details><summary>this ID is not in the index, so say which place it is in with --to &lt;place&gt;</summary>
+          <div><p>The file is not on your list, as with the backup of the index. Add its place: <code>taasant download --to r2 &lt;id&gt; index.json</code>.</p></div></details>
+        <details><summary>The Mac app says "Apple could not verify" or will not open</summary>
+          <div><p>It has no Apple developer certificate. Open <strong>System Settings → Privacy &amp; Security</strong> and press <strong>Open Anyway</strong>. See <a href="#install/mac-warning">“Apple could not verify taasant”</a>.</p></div></details>
+        <details><summary>I cannot see the menu bar icon</summary>
+          <div><p>The menu bar can be too full for it. Open Taasant again from Finder or Spotlight to get its window, or make room in the menu bar.</p></div></details>
         <details><summary>there is no bot token, run "taasant" in a terminal to set up</summary>
           <div><p>taasant has not been set up on this computer. Run <code>taasant</code> with nothing after it and answer its questions. See <a href="#setup">Set it up</a>.</p></div></details>
         <details><summary>the bot can't send messages to the bot</summary>
@@ -795,9 +943,9 @@ taasant update                     # get the newest version of taasant</pre></di
       <!-- ================= HOW IT WORKS ================= -->
       <section class="page" id="p-how-it-works" data-title="How it works" data-group="Internals">
         <h1>How it works</h1>
-        <p class="lede">A bot can upload files up to 50 MB but can only download ones up to 20 MB. So taasant cuts every file into 19 MiB parts.</p>
+        <p class="lede">Two kinds of place, two layouts, one idea: encrypt on your computer, then store opaque pieces. A Telegram bot can upload files up to 50 MB but can only download ones up to 20 MB, so taasant cuts every file into 19 MiB parts. A bucket has no such limit.</p>
 
-        <h2 id="upload">An upload</h2>
+        <h2 id="upload">An upload to Telegram</h2>
         <div class="flow">
           <div class="flow-step"><div class="blocks file"><i></i></div><div><h4>1. Read</h4><p>The file is read in parts of 19 MiB, so every part can be downloaded later.</p></div></div>
           <div class="flow-step"><div class="blocks parts"><i></i><i></i><i></i><i></i></div><div><h4>2. Split</h4><p>The last part is whatever is left over.</p></div></div>
@@ -806,26 +954,37 @@ taasant update                     # get the newest version of taasant</pre></di
         </div>
         <p>The manifest's ID is what gets saved in your index next to the file name.</p>
 
-        <h2 id="download">A download</h2>
+        <h2 id="download">A download from Telegram</h2>
         <p>The reverse: look up the name, fetch the manifest, fetch the parts, decrypt them, and write them out in order.</p>
 
-        <h2 id="delete">A delete</h2>
+        <h2 id="delete">A delete from Telegram</h2>
         <p>Fetch the manifest, delete every part, then delete the manifest itself. The manifest goes last, so the list of parts is not lost if a delete fails halfway.</p>
+
+        <h2 id="bucket-how">In a bucket</h2>
+        <p>A file is one object with a random name, cut into chunks of 16 MiB, each encrypted on its own. What each chunk is sealed with names the object, its place in the row and whether it is the last, so a chunk cannot be swapped, dropped, repeated or cut short without the download noticing. The chunks go up as the parts of a multipart upload, a few at a time, and a failed or cancelled upload gives its parts back so none are left to be billed. Requests are signed by taasant itself (AWS Signature Version 4), with no outside library.</p>
+        <p>Because each chunk sits at a place that follows from its number, a read of one part of a file asks the bucket for just that range. That is how the Finder drive can open a big video without downloading all of it. A download is one request, decrypted chunk by chunk as it arrives. A delete is one request.</p>
+
+        <h2 id="app-how">The Mac app</h2>
+        <p>The app does no storing of its own. It runs the <code>taasant</code> program inside it, with <code>--json</code> for output a program can read, and shows what it prints. So the app and the terminal always agree about your files.</p>
       </section>
 
       <!-- ================= DEVELOPMENT ================= -->
       <section class="page" id="p-development" data-title="Development" data-group="Internals">
         <h1>Development</h1>
-        <p class="lede">Small codebase. The storage code is standard library only.</p>
+        <p class="lede">Small codebase. The storage code, for Telegram and for buckets, is standard library only.</p>
 
         <div class="code"><div class="bar"><span>bash</span></div>
-<pre data-lang="bash">go test ./...          # no token or internet needed, it uses a fake Telegram
-go test -race ./...    # also checks for concurrency mistakes</pre></div>
+<pre data-lang="bash">go test ./...          # no token or internet needed, it uses a fake Telegram and a fake S3
+go test -race ./...    # also checks for concurrency mistakes
+macos/build.sh arm64   # the Mac app and Taasant.dmg, for this Mac only</pre></div>
+        <p>A test against a real bucket runs when you give it one: set <code>TAAS_S3_TEST_ENDPOINT</code>, <code>_REGION</code>, <code>_BUCKET</code>, <code>_ACCESS_KEY</code> and <code>_SECRET_KEY</code>, then <code>go test ./s3store -run Live</code>. It leaves nothing behind.</p>
 
         <div class="table-wrap"><table>
           <tr><th>Path</th><th>What it does</th></tr>
-          <tr><td><code>cmd/taasant/</code></td><td>The command line and the index.</td></tr>
+          <tr><td><code>cmd/taasant/</code></td><td>The command line, the setup screens, the settings, the index and the Finder drive.</td></tr>
           <tr><td><code>tgstore/</code></td><td>Splitting, encryption, and talking to Telegram.</td></tr>
+          <tr><td><code>s3store/</code></td><td>Encryption, multipart uploads, request signing and ranged reads for buckets.</td></tr>
+          <tr><td><code>macos/</code></td><td>The Mac app, written in Swift, and <code>build.sh</code>, which also makes the <code>.dmg</code> with its installer window (<code>macos/dmg/make-background.py</code> draws the picture behind the icons).</td></tr>
         </table></div>
 
         <h2 id="credits">Credits</h2>

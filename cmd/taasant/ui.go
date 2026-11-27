@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -53,14 +54,19 @@ func printList(entries []entry, now time.Time) {
 	for _, e := range entries {
 		width = max(width, utf8.RuneCountInString(e.Name))
 	}
-	row := func(name, size, when string) string {
+	// WHERE only shows once files are stored in more than one place.
+	mixed := slices.ContainsFunc(entries, func(e entry) bool { return e.where() != entries[0].where() })
+	row := func(name, size, when, where string) string {
 		padding := strings.Repeat(" ", width-utf8.RuneCountInString(name))
+		if mixed {
+			return fmt.Sprintf("  %s%s  %10s   %-11s   %s", name, padding, size, when, where)
+		}
 		return fmt.Sprintf("  %s%s  %10s   %s", name, padding, size, when)
 	}
 
-	fmt.Println(paint(outTTY, dim, row("NAME", "SIZE", "UPLOADED")))
+	fmt.Println(paint(outTTY, dim, row("NAME", "SIZE", "UPLOADED", "WHERE")))
 	for _, e := range entries {
-		fmt.Println(row(e.Name, formatSize(e.Size), formatWhen(e.Uploaded, now)))
+		fmt.Println(row(e.Name, formatSize(e.Size), formatWhen(e.Uploaded, now), e.where()))
 	}
 	fmt.Println()
 	fmt.Println(paint(outTTY, dim, "  "+summary(entries)))
