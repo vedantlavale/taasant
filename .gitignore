@@ -10,3 +10,5 @@ DOC.md
 /macos/dist/
 !/site/*.html
 !/site/blog/*.html
+/.build/
+/.wrangler/
